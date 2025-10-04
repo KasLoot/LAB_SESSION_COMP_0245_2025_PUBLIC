@@ -1,0 +1,7 @@
+source: collected dataset
+samples: 10001
+parameters: 70
+r_squared: 0.817618
+adjusted_r_squared: 0.816332
+mae: 0.455766
+rmse: 7.242058

@@ -91,7 +91,7 @@ def main():
         
         current_time += time_step
         # Optional: print current time
-        # print(f"Current time in seconds: {current_time:.2f}")
+        print(f"Current time in seconds: {current_time:.2f}")
 
     # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
     tau_mes_all = np.array(tau_mes_all)
@@ -122,26 +122,52 @@ def main():
     a2 = a[60:]
     print(f"a2 shape: {a2.shape}")
 
-    # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file
-    tau_pred = regressor_all @ a
-    print(f"tau_pred shape: {tau_pred.shape}")
-    residuals = tau_mes_all - tau_pred
-    print(f"residuals shape: {residuals.shape}")
+    # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file 
+    eval_regressor = isolated_new_regressor_all
+    eval_tau = isolated_new_torque_mes_all
+    metrics_source = "collected dataset"
 
-    rss = np.sum(residuals**2)
-    tss = np.sum((tau_mes_all - np.mean(tau_mes_all))**2)
-    r_squared = 1 - (rss / tss)
-    print(f"R-squared: {r_squared}")
+    eval_regressor = np.asarray(eval_regressor)
+    eval_tau = np.asarray(eval_tau)
 
-    n = regressor_all.shape[0]  # number of observations
-    p = regressor_all.shape[1]  # number of predictors
-    r_squared_adj = 1 - (1 - r_squared) * (n - 1) / (n - p - 1)
-    print(f"Adjusted R-squared: {r_squared_adj}")
+    if eval_regressor.ndim != 2 or eval_regressor.shape[1] != a.shape[0]:
+        eval_regressor = eval_regressor.reshape(-1, a.shape[0])
 
+    torque_eval = eval_tau.reshape(-1)
+    if torque_eval.size != eval_regressor.shape[0]:
+        raise ValueError("Mismatch between evaluation regressor rows and torque samples")
 
+    torque_pred_eval = eval_regressor @ a2
+    residuals = torque_eval - torque_pred_eval
 
+    sample_count = eval_regressor.shape[0]
+    param_count = eval_regressor.shape[1]
 
+    ss_res = np.dot(residuals, residuals)
+    centered = torque_eval - torque_eval.mean()
+    ss_tot = np.dot(centered, centered)
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot else 1.0
+    if sample_count > param_count + 1:
+        adjusted_r_squared = 1.0 - (1.0 - r_squared) * (sample_count - 1) / (sample_count - param_count - 1)
+    else:
+        adjusted_r_squared = r_squared
+    mae = np.mean(np.abs(residuals))
+    rmse = np.sqrt(ss_res / sample_count) if sample_count else 0.0
 
+    metrics_output_path = os.path.join(cur_dir, "linear_model_metrics.txt")
+    metrics_lines = [
+        f"source: {metrics_source}",
+        f"samples: {sample_count}",
+        f"parameters: {param_count}",
+        f"r_squared: {r_squared:.6f}",
+        f"adjusted_r_squared: {adjusted_r_squared:.6f}",
+        f"mae: {mae:.6f}",
+        f"rmse: {rmse:.6f}",
+    ]
+    with open(metrics_output_path, "w", encoding="ascii") as metrics_file:
+        metrics_file.write("\n".join(metrics_lines))
+
+    print(f"Saved linear model metrics to {metrics_output_path}")
 
     # TODO plot the torque prediction error for each joint (optional)
     reg_pred = regressor_all.transpose((1, 0, 2))@a

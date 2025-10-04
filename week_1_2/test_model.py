@@ -27,13 +27,13 @@ def main():
     # Specify different amplitude values for each joint
     amplitudes = [np.pi/4, np.pi/6, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4]  # Example amplitudes for joints
     # Specify different frequency values for each joint
-    frequencies = [0.4, 0.5, 0.4, 0.4, 0.4, 0.4, 0.4]  # Example frequencies for joints
     # frequencies = [0.49, 0.9, 0.4, 0.84, 0.24, 0.64, 0.03]  # Example frequencies for joints
-
+    # print(f"random frequencies: {frequencies}")
 
     # Convert lists to NumPy arrays for easier manipulation in computations
     amplitude = np.array(amplitudes)
-    frequency = np.array(frequencies)
+    frequency = np.random.rand(7)
+    print(f"random frequency: {frequency}")
     ref = SinusoidalReference(amplitude, frequency, sim.GetInitMotorAngles())  # Initialize the reference
     
     
@@ -91,7 +91,7 @@ def main():
         
         current_time += time_step
         # Optional: print current time
-        print(f"Current time in seconds: {current_time:.2f}")
+        # print(f"Current time in seconds: {current_time:.2f}")
 
     # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
     tau_mes_all = np.array(tau_mes_all)
@@ -107,10 +107,10 @@ def main():
 
     print(f"pinv regressor_all shape: {np.linalg.pinv(new_regressor_all).shape}")
 
-    a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
-    # a = np.load("./a2.npy")
+    # a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
+    a = np.load("./a.npy")
     print(f"a shape: {a.shape}")
-    np.save("./a.npy", a)
+    # np.save("./a2.npy", a)
 
     
     # TODO reshape the regressor and the torque vector to isolate the last joint and find the its dynamical parameters

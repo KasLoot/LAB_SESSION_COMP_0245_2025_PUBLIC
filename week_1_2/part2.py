@@ -93,54 +93,54 @@ def main():
         # Optional: print current time
         # print(f"Current time in seconds: {current_time:.2f}")
 
-    # # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
+    # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
     tau_mes_all = np.array(tau_mes_all)
-    # new_tau_mes_all = tau_mes_all.reshape(-1)
+    new_tau_mes_all = tau_mes_all.reshape(-1)
     regressor_all = np.array(regressor_all)
-    # new_regressor_all = regressor_all.reshape(-1, num_joints*10)
+    new_regressor_all = regressor_all.reshape(-1, num_joints*10)
 
-    # print(f"tau_mes_all shape: {tau_mes_all.shape}")
-    # print(f"new_tau_mes_all shape: {new_tau_mes_all.shape}")
+    print(f"tau_mes_all shape: {tau_mes_all.shape}")
+    print(f"new_tau_mes_all shape: {new_tau_mes_all.shape}")
 
-    # print(f"regressor_all shape: {regressor_all.shape}")
-    # print(f"new_regressor_all shape: {new_regressor_all.shape}")
+    print(f"regressor_all shape: {regressor_all.shape}")
+    print(f"new_regressor_all shape: {new_regressor_all.shape}")
 
-    # print(f"pinv regressor_all shape: {np.linalg.pinv(new_regressor_all).shape}")
+    print(f"pinv regressor_all shape: {np.linalg.pinv(new_regressor_all).shape}")
 
-    # a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
-    # # a = np.load("./a2.npy")
-    # print(f"a shape: {a.shape}\na[:10]:\n{a[-10:]}")
-    # np.save("./a.npy", a)
+    a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
+    # a = np.load("./a2.npy")
+    print(f"a shape: {a.shape}\na[:10]:\n{a[-10:]}")
+    np.save("./a_part2.npy", a)
 
     
-    # TODO reshape the regressor and the torque vector to isolate the last joint and find the its dynamical parameters
-    isolated_new_regressor_all = regressor_all[:, -1, 60:]
-    print(f"isolated_new_regressor_all shape: {isolated_new_regressor_all.shape}")
-    isolated_new_torque_mes_all = tau_mes_all[:, -1]
-    print(f"isolated_new_torque_mes_all shape: {isolated_new_torque_mes_all.shape}")
+    # # TODO reshape the regressor and the torque vector to isolate the last joint and find the its dynamical parameters
+    # isolated_new_regressor_all = regressor_all[:, -1, 60:]
+    # print(f"isolated_new_regressor_all shape: {isolated_new_regressor_all.shape}")
+    # isolated_new_torque_mes_all = tau_mes_all[:, -1]
+    # print(f"isolated_new_torque_mes_all shape: {isolated_new_torque_mes_all.shape}")
+
+    # # a_last_joint = np.linalg.pinv(isolated_new_regressor_all)@isolated_new_torque_mes_all
+    # # print(f"a_last_joint shape: {a_last_joint.shape}")
+
 
     # a_last_joint = np.linalg.pinv(isolated_new_regressor_all)@isolated_new_torque_mes_all
     # print(f"a_last_joint shape: {a_last_joint.shape}")
+    # print(f"a_last_joint:\n{a_last_joint}")
+    # # print(f"a_last_joint equal?: {a_last_joint[60:]==a_last_joint2}")
 
+    # p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    # p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    # p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    # p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    # p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    # p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
 
-    a_last_joint = np.linalg.pinv(isolated_new_regressor_all)@isolated_new_torque_mes_all
-    print(f"a_last_joint shape: {a_last_joint.shape}")
-    print(f"a_last_joint:\n{a_last_joint}")
-    # print(f"a_last_joint equal?: {a_last_joint[60:]==a_last_joint2}")
+    # a_constructed = np.hstack((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6, a_last_joint))
+    # print(f"a_constructed shape: {a_constructed.shape}")
 
-    p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-
-    a_constructed = np.hstack((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6, a_last_joint))
-    print(f"a_constructed shape: {a_constructed.shape}")
-    np.save("./a_constructed.npy", a_constructed)
 
     # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file
-    tau_pred = regressor_all @ a_constructed
+    tau_pred = regressor_all @ a
     print(f"tau_pred shape: {tau_pred.shape}")
     residuals = tau_mes_all - tau_pred
     print(f"residuals shape: {residuals.shape}")
@@ -159,7 +159,7 @@ def main():
 
 
     # TODO plot the torque prediction error for each joint (optional)
-    reg_pred = regressor_all.transpose((1, 0, 2))@a_constructed
+    reg_pred = regressor_all.transpose((1, 0, 2))@a
     reg_pred = np.expand_dims(reg_pred, axis=-1)
     tau_mes_all = np.expand_dims(tau_mes_all.transpose((1, 0)), axis=-1)
     print(f"reg_pred shape: {reg_pred.shape}")
@@ -197,7 +197,7 @@ def main():
             ax.set_xlabel('Time (s)', fontsize=10)
     
     plt.tight_layout()
-    plot1_path = os.path.join(cur_dir, "part1_torque_prediction_vs_measurement.png")
+    plot1_path = os.path.join(cur_dir, "part2_torque_prediction_vs_measurement.png")
     plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
     print(f"Saved plot to {plot1_path}")
     # plt.show()
@@ -235,7 +235,7 @@ def main():
             ax.set_xlabel('Time (s)', fontsize=10)
     
     plt.tight_layout()
-    plot2_path = os.path.join(cur_dir, "part1_torque_prediction_error.png")
+    plot2_path = os.path.join(cur_dir, "part2_torque_prediction_error.png")
     plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
     print(f"Saved plot to {plot2_path}")
     # plt.show()
@@ -272,7 +272,7 @@ def main():
             ax.set_xlabel('Error (Nm)', fontsize=10)
     
     plt.tight_layout()
-    plot3_path = os.path.join(cur_dir, "part1_torque_error_distribution.png")
+    plot3_path = os.path.join(cur_dir, "part2_torque_error_distribution.png")
     plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
     print(f"Saved plot to {plot3_path}")
     # plt.show()
@@ -320,7 +320,7 @@ def main():
     ax2.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plot4_path = os.path.join(cur_dir, "part1_error_statistics_comparison.png")
+    plot4_path = os.path.join(cur_dir, "part2_error_statistics_comparison.png")
     plt.savefig(plot4_path, dpi=300, bbox_inches='tight')
     print(f"Saved plot to {plot4_path}")
     # plt.show()

@@ -109,21 +109,35 @@ def main():
 
     a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
     # a = np.load("./a2.npy")
-    print(f"a shape: {a.shape}")
+    print(f"a shape: {a.shape}\na[:10]:\n{a[-10:]}")
     np.save("./a.npy", a)
 
     
     # TODO reshape the regressor and the torque vector to isolate the last joint and find the its dynamical parameters
-    isolated_new_regressor_all = regressor_all[:, -1, :]
+    isolated_new_regressor_all = regressor_all[:, -1, 60:]
     print(f"isolated_new_regressor_all shape: {isolated_new_regressor_all.shape}")
     isolated_new_torque_mes_all = tau_mes_all[:, -1]
     print(f"isolated_new_torque_mes_all shape: {isolated_new_torque_mes_all.shape}")
 
+    # a_last_joint = np.linalg.pinv(isolated_new_regressor_all)@isolated_new_torque_mes_all
+    # print(f"a_last_joint shape: {a_last_joint.shape}")
+
+
     a_last_joint = np.linalg.pinv(isolated_new_regressor_all)@isolated_new_torque_mes_all
     print(f"a_last_joint shape: {a_last_joint.shape}")
+    print(f"a_last_joint:\n{a_last_joint}")
+    # print(f"a_last_joint equal?: {a_last_joint[60:]==a_last_joint2}")
 
-    # a2 = a[60:]
-    # print(f"a2 shape: {a2.shape}")
+    p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+
+    a_constructed = np.hstack((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6, a_last_joint))
+    print(f"a_constructed shape: {a_constructed.shape}")
+
 
     # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file
     tau_pred = regressor_all @ a
@@ -140,8 +154,6 @@ def main():
     p = regressor_all.shape[1]  # number of predictors
     r_squared_adj = 1 - (1 - r_squared) * (n - 1) / (n - p - 1)
     print(f"Adjusted R-squared: {r_squared_adj}")
-
-
 
 
 
@@ -186,9 +198,9 @@ def main():
     
     plt.tight_layout()
     plot1_path = os.path.join(cur_dir, "torque_prediction_vs_measurement.png")
-    plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
-    print(f"Saved plot to {plot1_path}")
-    # plt.show()
+    # plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
+    # print(f"Saved plot to {plot1_path}")
+    plt.show()
 
     # Plot prediction errors for each joint
     fig2, axes2 = plt.subplots(7, 1, figsize=(12, 14))
@@ -224,9 +236,9 @@ def main():
     
     plt.tight_layout()
     plot2_path = os.path.join(cur_dir, "torque_prediction_error.png")
-    plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
-    print(f"Saved plot to {plot2_path}")
-    # plt.show()
+    # plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
+    # print(f"Saved plot to {plot2_path}")
+    plt.show()
 
     # Plot error distribution histograms
     fig3, axes3 = plt.subplots(7, 1, figsize=(12, 14))
@@ -261,9 +273,9 @@ def main():
     
     plt.tight_layout()
     plot3_path = os.path.join(cur_dir, "torque_error_distribution.png")
-    plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
-    print(f"Saved plot to {plot3_path}")
-    # plt.show()
+    # plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
+    # print(f"Saved plot to {plot3_path}")
+    plt.show()
 
     # Plot overall error statistics comparison across joints
     fig4, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -309,9 +321,9 @@ def main():
     
     plt.tight_layout()
     plot4_path = os.path.join(cur_dir, "error_statistics_comparison.png")
-    plt.savefig(plot4_path, dpi=300, bbox_inches='tight')
-    print(f"Saved plot to {plot4_path}")
-    # plt.show()
+    # plt.savefig(plot4_path, dpi=300, bbox_inches='tight')
+    # print(f"Saved plot to {plot4_path}")
+    plt.show()
 
 if __name__ == '__main__':
     main()

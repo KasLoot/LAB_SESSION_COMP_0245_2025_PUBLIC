@@ -3,3 +3,7 @@ models/
 
 # Ignore the egg-info directory
 configs/
+
+# Ignore compiled Python files
+*.pyc
+**/__pycache__/**

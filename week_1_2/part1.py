@@ -135,7 +135,7 @@ def collect_data():
 
     a_constructed = np.hstack((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6, a_last_joint))
     print(f"a_constructed shape: {a_constructed.shape}")
-    np.save("./a_constructed.npy", a_constructed)
+    np.save("./a_part1.npy", a_constructed)
 
     # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file
     tau_pred = regressor_all @ a_constructed

@@ -108,7 +108,7 @@ def main():
     print(f"pinv regressor_all shape: {np.linalg.pinv(new_regressor_all).shape}")
 
     # a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
-    a = np.load("./a.npy")
+    a = np.load("./a_constructed.npy")
     print(f"a shape: {a.shape}")
     # np.save("./a2.npy", a)
 

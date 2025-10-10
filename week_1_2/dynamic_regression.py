@@ -119,6 +119,11 @@ def main():
     isolated_new_torque_mes_all = tau_mes_all[:, -1]
     print(f"isolated_new_torque_mes_all shape: {isolated_new_torque_mes_all.shape}")
 
+    # isolated_new_regressor_all = regressor_all[:, :, 60:].reshape(70007, 10)
+    # print(f"isolated_new_regressor_all shape: {isolated_new_regressor_all.shape}")
+    # isolated_new_torque_mes_all = tau_mes_all.reshape(70007)
+    # print(f"isolated_new_torque_mes_all shape: {isolated_new_torque_mes_all.shape}")
+
     # a_last_joint = np.linalg.pinv(isolated_new_regressor_all)@isolated_new_torque_mes_all
     # print(f"a_last_joint shape: {a_last_joint.shape}")
 

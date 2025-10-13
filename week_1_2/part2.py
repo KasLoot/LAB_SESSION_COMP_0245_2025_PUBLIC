@@ -184,42 +184,42 @@ def collect_data():
     traj_names = []
     
     # 1. Sinusoidal trajectories (original)
-    n_sinusoidal = 3
+    n_sinusoidal = 1
     amplitude = np.array([np.pi/4, np.pi/6, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4])
     frequency = np.random.rand(n_sinusoidal, 7)
     for i, f in enumerate(frequency):
         trajectories.append(SinusoidalReference(amplitude, f, init_pos))
         traj_names.append(f"Sinusoidal_{i+1}")
     
-    # 2. Polynomial trajectories
-    n_polynomial = 2
-    for i in range(n_polynomial):
-        coeffs = np.random.randn(7, 4) * np.array([0.1, 0.2, 0.1, 0.05])  # Random coefficients
-        trajectories.append(PolynomialReference(coeffs, init_pos, duration=10))
-        traj_names.append(f"Polynomial_{i+1}")
+    # # 2. Polynomial trajectories
+    # n_polynomial = 2
+    # for i in range(n_polynomial):
+    #     coeffs = np.random.randn(7, 4) * np.array([0.1, 0.2, 0.1, 0.05])  # Random coefficients
+    #     trajectories.append(PolynomialReference(coeffs, init_pos, duration=10))
+    #     traj_names.append(f"Polynomial_{i+1}")
     
-    # 3. Step trajectories
-    n_steps = 2
-    for i in range(n_steps):
-        positions = [np.random.randn(7) * 0.3 for _ in range(4)]  # 4 different positions
-        trajectories.append(StepReference(positions, step_duration=2.5, init_pos=init_pos))
-        traj_names.append(f"Step_{i+1}")
+    # # 3. Step trajectories
+    # n_steps = 2
+    # for i in range(n_steps):
+    #     positions = [np.random.randn(7) * 0.3 for _ in range(4)]  # 4 different positions
+    #     trajectories.append(StepReference(positions, step_duration=2.5, init_pos=init_pos))
+    #     traj_names.append(f"Step_{i+1}")
     
-    # 4. Composite (multi-frequency) trajectories
-    n_composite = 2
-    for i in range(n_composite):
-        n_components = 3
-        amplitudes = np.random.rand(n_components, 7) * np.array([np.pi/8, np.pi/12, np.pi/8, np.pi/8, np.pi/8, np.pi/8, np.pi/8])
-        frequencies = np.random.rand(n_components, 7) * 0.5
-        trajectories.append(CompositeReference(amplitudes, frequencies, init_pos))
-        traj_names.append(f"Composite_{i+1}")
+    # # 4. Composite (multi-frequency) trajectories
+    # n_composite = 2
+    # for i in range(n_composite):
+    #     n_components = 3
+    #     amplitudes = np.random.rand(n_components, 7) * np.array([np.pi/8, np.pi/12, np.pi/8, np.pi/8, np.pi/8, np.pi/8, np.pi/8])
+    #     frequencies = np.random.rand(n_components, 7) * 0.5
+    #     trajectories.append(CompositeReference(amplitudes, frequencies, init_pos))
+    #     traj_names.append(f"Composite_{i+1}")
     
-    # 5. Linear ramp trajectories
-    n_ramps = 2
-    for i in range(n_ramps):
-        target_disp = np.random.randn(7) * 0.5
-        trajectories.append(LinearRampReference(target_disp, ramp_time=5.0, init_pos=init_pos))
-        traj_names.append(f"LinearRamp_{i+1}")
+    # # 5. Linear ramp trajectories
+    # n_ramps = 2
+    # for i in range(n_ramps):
+    #     target_disp = np.random.randn(7) * 0.5
+    #     trajectories.append(LinearRampReference(target_disp, ramp_time=5.0, init_pos=init_pos))
+    #     traj_names.append(f"LinearRamp_{i+1}")
     
     # Simulation parameters
     time_step = sim.GetTimeStep()
@@ -248,9 +248,9 @@ def collect_data():
     regressor_all = np.array(regressor_all)
 
     # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
-    tau_mes_all = np.array(tau_mes_all)
+    tau_mes_all = np.array(tau_mes_all)[1000:]
     new_tau_mes_all = tau_mes_all.reshape(-1)
-    regressor_all = np.array(regressor_all)
+    regressor_all = np.array(regressor_all)[1000:]
     new_regressor_all = regressor_all.reshape(-1, num_joints*10)
 
     a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all

@@ -92,7 +92,7 @@ def collect_data():
     # Simulation parameters
     time_step = sim.GetTimeStep()
     print(f"time step: {time_step}")
-    max_time = 10  # seconds
+    max_time = 50  # seconds
     
     # Command and control loop
     cmd = MotorCommands()  # Initialize command structure for motors
@@ -112,10 +112,15 @@ def collect_data():
 
 
     # # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
-    tau_mes_all = np.array(tau_mes_all)
-    regressor_all = np.array(regressor_all)
+    tau_mes_all = np.array(tau_mes_all)[1000:]
+    regressor_all = np.array(regressor_all)[1000:]
     print(f"\n\n\ntau_mes_all shape: {tau_mes_all.shape}")
     print(f"regressor_all shape: {regressor_all.shape}")
+
+    regressor_6_joints = regressor_all[:, :6, :60]
+    print(f"regressor_6_joints shape: {regressor_6_joints.shape}")
+    regressor_last_joint = regressor_all[:, 6, :]
+    print(f"regressor_last_joint shape: {regressor_last_joint.shape}")
 
     
     p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
@@ -130,22 +135,21 @@ def collect_data():
 
     
 
-    tau_real = regressor_all[:, :6, :].reshape(-1, 70)[:,:60] @ a_known
+    tau_real = regressor_6_joints @ a_known
     print(f"tau_real shape: {tau_real.shape}")
 
-    tau_real = tau_real.reshape(-1,6)
-    print(f"tau_real reshaped shape: {tau_real.shape}")
 
-    tau_mixed = np.hstack((tau_real, tau_mes_all[:,6].reshape(-1,1)))
+    tau_mixed = np.concatenate((tau_real, np.expand_dims(tau_mes_all[:, 6], axis=1)), axis=1)
     print(f"tau_mixed shape: {tau_mixed.shape}")
 
-    a = np.linalg.pinv(regressor_all.reshape(-1,70)) @ tau_mixed.reshape(-1)
+    a = np.linalg.pinv(np.vstack(regressor_all)) @ np.hstack(tau_mixed)
     print(f"a computed shape: {a.shape}")
 
     a_last_joint = a[60:]
     print(f"a_last_joint shape: {a_last_joint.shape}")
     print(f"a_last_joint: {a_last_joint}")
 
+    a = np.hstack((a_known, a_last_joint))
 
     np.save("./a_part1_test.npy", a)
 

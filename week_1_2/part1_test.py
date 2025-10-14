@@ -169,6 +169,11 @@ def collect_data():
     r_squared_adj = 1 - (1 - r_squared) * (n - 1) / (n - p - 1)
     print(f"Adjusted R-squared: {r_squared_adj}")
 
+    # Compute F-statistic
+    mss = tss - rss  # Model sum of squares
+    f_statistic = (mss / p) / (rss / (n - p - 1))
+    print(f"F-statistic: {f_statistic}")
+
     draw_plots(regressor_all, tau_mes_all, a, time_step, cur_dir)
 
 

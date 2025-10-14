@@ -114,3 +114,53 @@ def plot_gp_results_1d(kp0_values, kd0_values, tracking_errors, gp_kp0, gp_kd0):
     
     plt.tight_layout()
     plt.show()
+
+
+def plot_gp_results_1d_new(kp0_values, kd0_values, tracking_errors, gp_kp0, gp_kd0):
+    # Create prediction ranges
+    kp0_pred = create_prediction_range_kp0()
+    kd0_pred = create_prediction_range_kd0()
+    
+    # Predict for kp0
+    y_mean_kp0, y_std_kp0 = gp_kp0.predict(kp0_pred, return_std=True)
+    # Predict for kd0
+    y_mean_kd0, y_std_kd0 = gp_kd0.predict(kd0_pred, return_std=True)
+
+    plt.figure(figsize=(12, 5))
+
+    # ---- Plot 1: Kp0 vs Tracking Error ----
+    plt.subplot(1, 2, 1)
+    plt.scatter(kp0_values, tracking_errors, c='r', label='Sampled data', zorder=10)
+    plt.plot(kp0_pred, y_mean_kp0, 'k-', lw=1.5, label='GP mean prediction')
+    plt.fill_between(
+        kp0_pred.ravel(),
+        y_mean_kp0 - 1.96 * y_std_kp0,
+        y_mean_kp0 + 1.96 * y_std_kp0,
+        alpha=0.3,
+        color='orange',
+        label='95% confidence interval'
+    )
+    plt.xlabel('Kp₀ value')
+    plt.ylabel('Tracking Error')
+    plt.title('Gaussian Process on Kp₀')
+    plt.legend()
+
+    # ---- Plot 2: Kd0 vs Tracking Error ----
+    plt.subplot(1, 2, 2)
+    plt.scatter(kd0_values, tracking_errors, c='r', label='Sampled data', zorder=10)
+    plt.plot(kd0_pred, y_mean_kd0, 'k-', lw=1.5, label='GP mean prediction')
+    plt.fill_between(
+        kd0_pred.ravel(),
+        y_mean_kd0 - 1.96 * y_std_kd0,
+        y_mean_kd0 + 1.96 * y_std_kd0,
+        alpha=0.3,
+        color='orange',
+        label='95% confidence interval'
+    )
+    plt.xlabel('Kd₀ value')
+    plt.ylabel('Tracking Error')
+    plt.title('Gaussian Process on Kd₀')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()

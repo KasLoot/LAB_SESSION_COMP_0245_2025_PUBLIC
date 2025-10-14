@@ -152,7 +152,7 @@ def main():
     space,
     n_calls=10,
     base_estimator=gp,  # Use the custom Gaussian Process Regressor
-    acq_func='EI',      # LCB': Lower Confidence Bound 'EI': Expected Improvement 'PI': Probability of Improvement
+    acq_func='LCB',      # LCB': Lower Confidence Bound 'EI': Expected Improvement 'PI': Probability of Improvement
     random_state=42)
     
     # Extract the optimal values
@@ -174,5 +174,110 @@ def main():
 
     print(f"Optimal Kp: {best_kp}, Optimal Kd: {best_kd}")
 
+
+def compare_acquisition_functions(results):
+    """比较不同采集函数的性能"""
+    plt.figure(figsize=(12, 8))
+    
+    # 绘制收敛曲线
+    plt.subplot(2, 1, 1)
+    for acq_func, data in results.items():
+        convergence = data['convergence']
+        plt.plot(range(len(convergence)), convergence, 
+                label=f'{acq_func} (final: {convergence[-1]:.4f})', linewidth=2)
+    
+    plt.xlabel('Iteration')
+    plt.ylabel('Tracking Error')
+    plt.title('Convergence Behavior of Different Acquisition Functions')
+    plt.legend()
+    plt.grid(True)
+    
+    # 绘制最终性能比较
+    plt.subplot(2, 1, 2)
+    final_errors = [data['convergence'][-1] for data in results.values()]
+    acq_names = list(results.keys())
+    
+    bars = plt.bar(acq_names, final_errors, color=['skyblue', 'lightgreen', 'lightcoral'])
+    plt.ylabel('Final Tracking Error')
+    plt.title('Final Performance Comparison')
+    
+    # 在柱状图上添加数值标签
+    for bar, error in zip(bars, final_errors):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001,
+                f'{error:.4f}', ha='center', va='bottom')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # 打印详细比较结果
+    print("\n=== Acquisition Function Comparison ===")
+    best_acq = min(results.items(), key=lambda x: x[1]['convergence'][-1])
+    print(f"Best performing acquisition function: {best_acq[0]}")
+    print(f"Best tracking error: {best_acq[1]['convergence'][-1]:.6f}")
+    
+    for acq_func, data in results.items():
+        print(f"\n{acq_func}:")
+        print(f"  Final error: {data['convergence'][-1]:.6f}")
+        print(f"  Best Kp: {data['result'].x[:7]}")
+        print(f"  Best Kd: {data['result'].x[7:]}")
+
+from gp_functions import plot_gp_results_1d_new
+def main_new():
+    acq_functions = ['EI', 'PI', 'LCB']
+    results = {}
+    
+    for acq_func in acq_functions:
+        print(f"\n=== Testing acquisition function: {acq_func} ===")
+        
+        # 重置全局变量
+        global kp0_values, kd0_values, tracking_errors
+        kp0_values = []
+        kd0_values = []
+        tracking_errors = []
+        
+        space = [
+            Real(0.1, 1000, name=f'kp{i}') for i in range(7)
+        ] + [
+            Real(0.0, 100, name=f'kd{i}') for i in range(7)
+        ]
+        
+        result = gp_minimize(
+            objective,
+            space,
+            n_calls=50,
+            base_estimator=GaussianProcessRegressor(
+                kernel=RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2)),
+                normalize_y=True,
+                n_restarts_optimizer=10
+            ),
+            acq_func=acq_func,
+            random_state=42
+        )
+        
+        results[acq_func] = {
+            'result': result,
+            'kp0_values': kp0_values.copy(),
+            'kd0_values': kd0_values.copy(),
+            'tracking_errors': tracking_errors.copy(),
+            'convergence': result.func_vals
+        }
+    
+    # 比较结果
+    compare_acquisition_functions(results)
+    
+    # 为最佳采集函数绘制GP结果
+    best_acq = min(results.items(), key=lambda x: x[1]['convergence'][-1])[0]
+    best_data = results[best_acq]
+    
+    kp0_array = np.array(best_data['kp0_values']).reshape(-1, 1)
+    kd0_array = np.array(best_data['kd0_values']).reshape(-1, 1)
+    errors_array = np.array(best_data['tracking_errors'])
+    
+    gp_kp0 = fit_gp_model_1d(kp0_array, errors_array)
+    gp_kd0 = fit_gp_model_1d(kd0_array, errors_array)
+    
+    plot_gp_results_1d_new(kp0_array, kd0_array, errors_array, gp_kp0, gp_kd0)
+
+
 if __name__ == "__main__":
-    main()
+    main_new()

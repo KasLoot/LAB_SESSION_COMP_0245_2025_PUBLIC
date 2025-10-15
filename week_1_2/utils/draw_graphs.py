@@ -8,7 +8,8 @@ def draw_plots(regressor_all: np.ndarray,
                time_step: float, 
                save_plots: bool,
                show_plots: bool,
-               save_dir: str):
+               save_dir: str,
+               part: str):
 
     # TODO plot the torque prediction error for each joint (optional)
     reg_pred = regressor_all.transpose((1, 0, 2))@a
@@ -49,7 +50,7 @@ def draw_plots(regressor_all: np.ndarray,
             ax.set_xlabel('Time (s)', fontsize=10)
     
     plt.tight_layout()
-    plot1_path = os.path.join(save_dir, "part1_torque_prediction_vs_measurement.png")
+    plot1_path = os.path.join(save_dir, f"{part}_torque_prediction_vs_measurement.png")
     if save_plots:
         plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
         print(f"Saved plot to {plot1_path}")
@@ -89,7 +90,7 @@ def draw_plots(regressor_all: np.ndarray,
             ax.set_xlabel('Time (s)', fontsize=10)
     
     plt.tight_layout()
-    plot2_path = os.path.join(save_dir, "part1_torque_prediction_error.png")
+    plot2_path = os.path.join(save_dir, f"{part}_torque_prediction_error.png")
     if save_plots:
         plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
         print(f"Saved plot to {plot2_path}")
@@ -128,7 +129,7 @@ def draw_plots(regressor_all: np.ndarray,
             ax.set_xlabel('Error (Nm)', fontsize=10)
     
     plt.tight_layout()
-    plot3_path = os.path.join(save_dir, "part1_torque_error_distribution.png")
+    plot3_path = os.path.join(save_dir, f"{part}_torque_error_distribution.png")
     if save_plots:
         plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
         print(f"Saved plot to {plot3_path}")
@@ -178,7 +179,7 @@ def draw_plots(regressor_all: np.ndarray,
     ax2.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plot4_path = os.path.join(save_dir, "part1_error_statistics_comparison.png")
+    plot4_path = os.path.join(save_dir, f"{part}_error_statistics_comparison.png")
     if save_plots:
         plt.savefig(plot4_path, dpi=300, bbox_inches='tight')
         print(f"Saved plot to {plot4_path}")

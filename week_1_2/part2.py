@@ -7,7 +7,7 @@ from tqdm import tqdm
 from dataclasses import dataclass, field
 
 @dataclass
-class Part1Config:
+class Part2Config:
     conf_file_name: str = "pandaconfig.json"
     cur_dir: str = os.path.dirname(os.path.abspath(__file__))
     
@@ -33,7 +33,7 @@ class Part1Config:
     plots_save_dir: str = os.path.join(cur_dir, "plots_part2")
 
 
-def initialize_robot(config: Part1Config):
+def initialize_robot(config: Part2Config):
     sim: pb.SimInterface = pb.SimInterface(config.conf_file_name, conf_file_path_ext=config.cur_dir)
     # Get active joint names from the simulation
     ext_names = sim.getNameActiveJoints()
@@ -100,7 +100,7 @@ def collect_data_single_trajectory(dyn_model: PinWrapper,
             current_time += time_step
 
 
-def collect_data(config: Part1Config):
+def collect_data(config: Part2Config):
 
     sim, dyn_model, num_joints = initialize_robot(config)
     initial_motor_angles = sim.GetInitMotorAngles()
@@ -152,7 +152,7 @@ def collect_data(config: Part1Config):
         evaluate_model(config, sim, dyn_model, time_step, initial_motor_angles, a)
 
 
-def evaluate_model(config: Part1Config,
+def evaluate_model(config: Part2Config,
                    sim: pb.SimInterface,
                    dyn_model: PinWrapper,
                    time_step: float,
@@ -188,10 +188,11 @@ def evaluate_model(config: Part1Config,
                time_step=time_step, 
                save_plots=config.save_plots,
                show_plots=config.show_plots,
-               save_dir=config.plots_save_dir)
+               save_dir=config.plots_save_dir,
+               part="part2")
 
 def run():
-    config = Part1Config()
+    config = Part2Config()
     collect_data(config)
 
 def main():

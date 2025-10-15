@@ -210,7 +210,8 @@ def evaluate_model(config: Part1Config,
                time_step=time_step, 
                save_plots=config.save_plots,
                show_plots=config.show_plots,
-               save_dir=config.plots_save_dir)
+               save_dir=config.plots_save_dir,
+               part="part1")
 
 def run():
     config = Part1Config()

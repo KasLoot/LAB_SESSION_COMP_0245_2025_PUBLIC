@@ -138,14 +138,16 @@ def collect_data():
     tau_real = regressor_6_joints @ a_known
     print(f"tau_real shape: {tau_real.shape}")
 
+    tau_real = tau_mes_all[:, :6] - tau_real
+
 
     tau_mixed = np.concatenate((tau_real, np.expand_dims(tau_mes_all[:, 6], axis=1)), axis=1)
     print(f"tau_mixed shape: {tau_mixed.shape}")
 
-    a = np.linalg.pinv(np.vstack(regressor_all)) @ np.hstack(tau_mixed)
+    a = np.linalg.pinv(np.vstack(regressor_all[:,:,60:])) @ np.hstack(tau_mixed)
     print(f"a computed shape: {a.shape}")
 
-    a_last_joint = a[60:]
+    a_last_joint = a
     print(f"a_last_joint shape: {a_last_joint.shape}")
     print(f"a_last_joint: {a_last_joint}")
 

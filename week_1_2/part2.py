@@ -1,318 +1,203 @@
 import numpy as np
-import time
 import os
-import matplotlib.pyplot as plt
 from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl, SinusoidalReference 
-from draw_graphs import draw_plots
+from utils.draw_graphs import draw_plots
+from utils.trajectory_generator import generate_trajectories
+from tqdm import tqdm
+from dataclasses import dataclass, field
+
+@dataclass
+class Part1Config:
+    conf_file_name: str = "pandaconfig.json"
+    cur_dir: str = os.path.dirname(os.path.abspath(__file__))
+    
+    source_names: list = field(default_factory=lambda: ["pybullet"])
+
+    kp: float = 1000.0
+    kd: float = 100.0
+    collection_max_time_per_trajectory: float = 10.0  # seconds
+    skip_initial: int = 1000  # number of initial samples to skip
+
+    num_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0])  # Number of trajectories for each type
+    evaluation_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0])  # Number of evaluation trajectories for each type
+
+    train_mix: bool = False  # Whether to mix trajectory types during training
+    evaluation_mix: bool = False   # Whether to mix trajectory types during evaluation
+
+    run_evaluation: bool = True
+
+    save_model: bool = True
+    save_plots: bool = True
+    show_plots: bool = False
+    model_save_path: str = os.path.join(cur_dir, "checkpoints", "a_part2.npy")
+    plots_save_dir: str = os.path.join(cur_dir, "plots_part2")
 
 
-class PolynomialReference:
-    """Polynomial trajectory: q(t) = a0 + a1*t + a2*t^2 + a3*t^3"""
-    def __init__(self, coefficients, init_pos, duration=10):
-        """
-        coefficients: array of shape (n_joints, 4) containing polynomial coefficients
-        init_pos: initial joint positions
-        duration: time duration for the trajectory
-        """
-        self.coefficients = np.array(coefficients)
-        self.init_pos = np.array(init_pos)
-        self.duration = duration
-        
-    def get_values(self, t):
-        t_normalized = (t % self.duration) / self.duration  # Normalize to [0, 1]
-        q = (self.coefficients[:, 0] + 
-             self.coefficients[:, 1] * t_normalized + 
-             self.coefficients[:, 2] * t_normalized**2 + 
-             self.coefficients[:, 3] * t_normalized**3)
-        qd = (self.coefficients[:, 1] / self.duration + 
-              2 * self.coefficients[:, 2] * t_normalized / self.duration + 
-              3 * self.coefficients[:, 3] * t_normalized**2 / self.duration)
-        return self.init_pos + q, qd
-
-
-class StepReference:
-    """Step trajectory: switches between positions at regular intervals"""
-    def __init__(self, positions, step_duration, init_pos):
-        """
-        positions: list of target positions (each is an array of joint positions)
-        step_duration: time duration for each step
-        init_pos: initial joint positions
-        """
-        self.positions = np.array(positions)
-        self.step_duration = step_duration
-        self.init_pos = np.array(init_pos)
-        self.n_steps = len(positions)
-        
-    def get_values(self, t):
-        step_index = int(t / self.step_duration) % self.n_steps
-        q = self.init_pos + self.positions[step_index]
-        qd = np.zeros_like(q)  # Zero velocity for step changes
-        return q, qd
-
-
-class CompositeReference:
-    """Combination of sinusoidal trajectories with different frequencies"""
-    def __init__(self, amplitudes, frequencies, init_pos):
-        """
-        amplitudes: array of shape (n_components, n_joints)
-        frequencies: array of shape (n_components, n_joints)
-        init_pos: initial joint positions
-        """
-        self.amplitudes = np.array(amplitudes)
-        self.frequencies = np.array(frequencies)
-        self.init_pos = np.array(init_pos)
-        
-    def get_values(self, t):
-        q = np.zeros(len(self.init_pos))
-        qd = np.zeros(len(self.init_pos))
-        
-        for amp, freq in zip(self.amplitudes, self.frequencies):
-            q += amp * np.sin(2 * np.pi * freq * t)
-            qd += amp * 2 * np.pi * freq * np.cos(2 * np.pi * freq * t)
-        
-        return self.init_pos + q, qd
-
-
-class LinearRampReference:
-    """Linear ramp trajectory: smooth linear motion between positions"""
-    def __init__(self, target_displacement, ramp_time, init_pos):
-        """
-        target_displacement: displacement from initial position
-        ramp_time: time to complete the ramp
-        init_pos: initial joint positions
-        """
-        self.target = np.array(target_displacement)
-        self.ramp_time = ramp_time
-        self.init_pos = np.array(init_pos)
-        
-    def get_values(self, t):
-        t_mod = t % (2 * self.ramp_time)
-        if t_mod < self.ramp_time:
-            # Moving forward
-            alpha = t_mod / self.ramp_time
-            q = self.init_pos + alpha * self.target
-            qd = self.target / self.ramp_time
-        else:
-            # Moving backward
-            alpha = (t_mod - self.ramp_time) / self.ramp_time
-            q = self.init_pos + (1 - alpha) * self.target
-            qd = -self.target / self.ramp_time
-        
-        return q, qd
-
-def initialize_robot(conf_file_name, cur_dir, sim: pb.SimInterface, source_names):
-
+def initialize_robot(config: Part1Config):
+    sim: pb.SimInterface = pb.SimInterface(config.conf_file_name, conf_file_path_ext=config.cur_dir)
     # Get active joint names from the simulation
     ext_names = sim.getNameActiveJoints()
     ext_names = np.expand_dims(np.array(ext_names), axis=0)  # Adjust the shape for compatibility
 
     # Create a dynamic model of the robot
-    dyn_model = PinWrapper(conf_file_name, "pybullet", ext_names, source_names, False, 0, cur_dir)
+    dyn_model = PinWrapper(config.conf_file_name, "pybullet", ext_names, config.source_names, False, 0, config.cur_dir)
     num_joints = dyn_model.getNumberofActuatedJoints()
 
     # Print initial joint angles
     print(f"Initial joint angles: {sim.GetInitMotorAngles()}")
 
-    return dyn_model, num_joints
+    return sim, dyn_model, num_joints
 
 
 def collect_data_single_trajectory(dyn_model: PinWrapper, 
                                    cmd: MotorCommands,
                                    sim: pb.SimInterface, 
-                                   ref,  # Generic reference trajectory object
+                                   ref, 
                                    kp, 
                                    kd, 
                                    time_step, 
                                    max_time, 
-                                   current_time, 
                                    regressor_all: list, 
                                    tau_mes_all: list,
+                                   skip_initial=1000
                                    ):
-    while current_time < max_time:
-        # Measure current state
-        q_mes = sim.GetMotorAngles(0)
-        qd_mes = sim.GetMotorVelocities(0)
-        qdd_mes = sim.ComputeMotorAccelerationTMinusOne(0)
-        
-        # Compute sinusoidal reference trajectory
-        q_d, qd_d = ref.get_values(current_time)  # Desired position and velocity
-        
-        # Control command
-        tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_d, qd_d, kp, kd)  # Zero torque command
-        cmd.SetControlCmd(tau_cmd, ["torque"]*7)  # Set the torque com
-        sim.Step(cmd, "torque")
+    current_time = 0  # Reset time for each trajectory
+    skip_time = time_step * skip_initial
+    with tqdm(total=max_time, desc="Collecting data", unit="s") as pbar:
+        while current_time < max_time:
+            # Measure current state
+            q_mes = sim.GetMotorAngles(0)
+            qd_mes = sim.GetMotorVelocities(0)
+            qdd_mes = sim.ComputeMotorAccelerationTMinusOne(0)
 
-        # Get measured torque
-        tau_mes = sim.GetMotorTorques(0)
+            # Compute sinusoidal reference trajectory
+            q_d, qd_d = ref.get_values(current_time)  # Desired position and velocity
+            
+            # Control command
+            tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_d, qd_d, kp, kd)  # Zero torque command
+            cmd.SetControlCmd(tau_cmd, ["torque"]*7)  # Set the torque command
+            sim.Step(cmd, "torque")
 
-        if dyn_model.visualizer: 
-            for index in range(len(sim.bot)):  # Conditionally display the robot model
-                q = sim.GetMotorAngles(index)
-                dyn_model.DisplayModel(q)  # Update the display of the robot model
+            # Get measured torque
+            tau_mes = sim.GetMotorTorques(0)
 
-        # Exit logic with 'q' key
-        keys = sim.GetPyBulletClient().getKeyboardEvents()
-        qKey = ord('q')
-        if qKey in keys and keys[qKey] and sim.GetPyBulletClient().KEY_WAS_TRIGGERED:
-            break
-        # TODO Compute regressor and store it
-        regressor_cur = dyn_model.ComputeDynamicRegressor(q_mes,qd_mes,qdd_mes)        
+            if dyn_model.visualizer: 
+                for index in range(len(sim.bot)):  # Conditionally display the robot model
+                    q = sim.GetMotorAngles(index)
+                    dyn_model.DisplayModel(q)  # Update the display of the robot model
 
-        regressor_all.append(regressor_cur)
-        tau_mes_all.append(tau_mes)
+            # Exit logic with 'q' key
+            keys = sim.GetPyBulletClient().getKeyboardEvents()
+            qKey = ord('q')
+            if qKey in keys and keys[qKey] and sim.GetPyBulletClient().KEY_WAS_TRIGGERED:
+                break
+            # TODO Compute regressor and store it
+            regressor_cur = dyn_model.ComputeDynamicRegressor(q_mes,qd_mes,qdd_mes)        
+            if current_time >= skip_time:
+                regressor_all.append(regressor_cur)
+                tau_mes_all.append(tau_mes)
+            pbar.update(time_step)
+            current_time += time_step
 
-        
-        current_time += time_step
-        # Optional: print current time
-        # print(f"Current time in seconds: {current_time:.2f}")
 
+def collect_data(config: Part1Config):
 
-def collect_data():
-    # Configuration for the simulation
-    conf_file_name = "pandaconfig.json"  # Configuration file for the robot
-    cur_dir = os.path.dirname(os.path.abspath(__file__))
-    sim = pb.SimInterface(conf_file_name, conf_file_path_ext=cur_dir)  # Initialize simulation interface
+    sim, dyn_model, num_joints = initialize_robot(config)
+    initial_motor_angles = sim.GetInitMotorAngles()
 
-    source_names = ["pybullet"]  # Define the source for dynamic modeling
+    ref = generate_trajectories(initial_motor_angles,
+                                num_trajectories=config.num_trajectories,
+                                mix=config.evaluation_mix)
 
-    dyn_model, num_joints = initialize_robot(conf_file_name=conf_file_name, cur_dir=cur_dir, sim=sim, source_names=source_names)
-
-    init_pos = sim.GetInitMotorAngles()
-    
-    # Create different types of trajectories for data collection
-    trajectories = []
-    traj_names = []
-    
-    # 1. Sinusoidal trajectories (original)
-    n_sinusoidal = 1
-    amplitude = np.array([np.pi/4, np.pi/6, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4])
-    frequency = np.array([[0.4, 0.5, 0.4, 0.4, 0.4, 0.4, 0.4]])
-    for i, f in enumerate(frequency):
-        trajectories.append(SinusoidalReference(amplitude, f, init_pos))
-        traj_names.append(f"Sinusoidal_{i+1}")
-    
-    # # 2. Polynomial trajectories
-    # n_polynomial = 2
-    # for i in range(n_polynomial):
-    #     coeffs = np.random.randn(7, 4) * np.array([0.1, 0.2, 0.1, 0.05])  # Random coefficients
-    #     trajectories.append(PolynomialReference(coeffs, init_pos, duration=10))
-    #     traj_names.append(f"Polynomial_{i+1}")
-    
-    # # 3. Step trajectories
-    # n_steps = 2
-    # for i in range(n_steps):
-    #     positions = [np.random.randn(7) * 0.3 for _ in range(4)]  # 4 different positions
-    #     trajectories.append(StepReference(positions, step_duration=2.5, init_pos=init_pos))
-    #     traj_names.append(f"Step_{i+1}")
-    
-    # # 4. Composite (multi-frequency) trajectories
-    # n_composite = 2
-    # for i in range(n_composite):
-    #     n_components = 3
-    #     amplitudes = np.random.rand(n_components, 7) * np.array([np.pi/8, np.pi/12, np.pi/8, np.pi/8, np.pi/8, np.pi/8, np.pi/8])
-    #     frequencies = np.random.rand(n_components, 7) * 0.5
-    #     trajectories.append(CompositeReference(amplitudes, frequencies, init_pos))
-    #     traj_names.append(f"Composite_{i+1}")
-    
-    # # 5. Linear ramp trajectories
-    # n_ramps = 2
-    # for i in range(n_ramps):
-    #     target_disp = np.random.randn(7) * 0.5
-    #     trajectories.append(LinearRampReference(target_disp, ramp_time=5.0, init_pos=init_pos))
-    #     traj_names.append(f"LinearRamp_{i+1}")
-    
     # Simulation parameters
     time_step = sim.GetTimeStep()
-    current_time = 0
-    max_time = 10  # seconds
+    print(f"time step: {time_step}")
     
     # Command and control loop
     cmd = MotorCommands()  # Initialize command structure for motors
-    # PD controller gains
-    kp = 1000
-    kd = 100
 
     # Initialize data storage
     tau_mes_all = []
     regressor_all = []
 
-    # Data collection loop with different trajectory types
-    total_trajectories = len(trajectories)
-    for i, (ref, traj_name) in enumerate(zip(trajectories, traj_names)):
-        print(f"Collecting data for trajectory {i+1}/{total_trajectories}: {traj_name}")
-        collect_data_single_trajectory(dyn_model, cmd, sim, ref, kp, kd, time_step, max_time, current_time, regressor_all, tau_mes_all)
-
-
-    # # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
-    tau_mes_all = np.array(tau_mes_all)
-    regressor_all = np.array(regressor_all)
+    # Data collection loop
+    for i in tqdm(range(len(ref)), desc="Collecting data from trajectories"):
+        collect_data_single_trajectory(dyn_model=dyn_model,
+                                       cmd=cmd,
+                                       sim=sim,
+                                       ref=ref[i],
+                                       kp=config.kp,
+                                       kd=config.kd,
+                                       time_step=time_step,
+                                       max_time=config.collection_max_time_per_trajectory,
+                                       regressor_all=regressor_all,
+                                       tau_mes_all=tau_mes_all,
+                                       skip_initial=config.skip_initial)
 
     # TODO After data collection, stack all the regressor and all the torque and compute the parameters 'a'  using pseudoinverse for all the joint
-    tau_mes_all = np.array(tau_mes_all)[1000:]
+    tau_mes_all = np.array(tau_mes_all)
     new_tau_mes_all = tau_mes_all.reshape(-1)
-    regressor_all = np.array(regressor_all)[1000:]
+    regressor_all = np.array(regressor_all)
     new_regressor_all = regressor_all.reshape(-1, num_joints*10)
 
     a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
-    np.save("./a_part2.npy", a)
+    print(f"a shape: {a.shape}")
 
-    evaluate_model(sim, dyn_model, cur_dir, a)
+    if config.save_model:
+        os.makedirs(os.path.dirname(config.model_save_path), exist_ok=True)
+        np.save(config.model_save_path, a)
+        print(f"Model parameters saved to {config.model_save_path}")
+
+    if config.run_evaluation:
+        evaluate_model(config, sim, dyn_model, time_step, initial_motor_angles, a)
 
 
-def evaluate_model(sim: pb.SimInterface, dyn_model: PinWrapper, cur_dir: str, a: np.ndarray):
-    amplitude = np.array([np.pi/4, np.pi/6, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4])
-    frequency = np.random.rand(1, 7)
-
-    ref = SinusoidalReference(amplitude, frequency[0], sim.GetInitMotorAngles())  # Initialize the reference
-    time_step = sim.GetTimeStep()
-    max_time = 10  # seconds
-    current_time = 0
-    cmd = MotorCommands()  # Initialize command structure for motors
-    kp = 1000
-    kd = 100
+def evaluate_model(config: Part1Config,
+                   sim: pb.SimInterface,
+                   dyn_model: PinWrapper,
+                   time_step: float,
+                   initial_motor_angles: np.ndarray,
+                   a: np.ndarray,
+                   ):
+    sim.ResetPose()
+    ref = generate_trajectories(initial_motor_angles,
+                                num_trajectories=config.evaluation_trajectories,
+                                mix=config.evaluation_mix)
+    cmd = MotorCommands()
     test_regressor_all = []
     test_tau_mes_all = []
-    collect_data_single_trajectory(dyn_model, cmd, sim, ref, kp, kd, time_step, max_time, current_time, test_regressor_all, test_tau_mes_all)
-    test_tau_mes_all = np.array(test_tau_mes_all)[1000:]
-    test_regressor_all = np.array(test_regressor_all)[1000:]
+    for i in range(len(ref)):
+        collect_data_single_trajectory(dyn_model=dyn_model,
+                                       cmd=cmd,
+                                       sim=sim,
+                                       ref=ref[i],
+                                       kp=config.kp,
+                                       kd=config.kd,
+                                       time_step=time_step,
+                                       max_time=config.collection_max_time_per_trajectory,
+                                       regressor_all=test_regressor_all,
+                                       tau_mes_all=test_tau_mes_all,
+                                       skip_initial=config.skip_initial)
 
+    test_tau_mes_all = np.array(test_tau_mes_all)
+    test_regressor_all = np.array(test_regressor_all)
+    print(f"Evaluation samples collected: {test_tau_mes_all.shape[0]}")
+    draw_plots(regressor_all=test_regressor_all, 
+               tau_mes_all=test_tau_mes_all, 
+               a=a, 
+               time_step=time_step, 
+               save_plots=config.save_plots,
+               show_plots=config.show_plots,
+               save_dir=config.plots_save_dir)
 
-    # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file
-    tau_pred = test_regressor_all @ a
-    print(f"tau_pred shape: {tau_pred.shape}")
-    residuals = test_tau_mes_all - tau_pred
-    print(f"residuals shape: {residuals.shape}")
-
-    rss = np.sum(residuals**2)
-    tss = np.sum((test_tau_mes_all - np.mean(test_tau_mes_all))**2)
-    r_squared = 1 - (rss / tss)
-    print(f"R-squared: {r_squared}")
-
-    n = test_regressor_all.shape[0]  # number of observations
-    p = test_regressor_all.shape[1]  # number of predictors
-    r_squared_adj = 1 - (1 - r_squared) * (n - 1) / (n - p - 1)
-    print(f"Adjusted R-squared: {r_squared_adj}")
-
-    # Compute F-statistic
-    mss = tss - rss  # Model sum of squares
-    f_statistic = (mss / p) / (rss / (n - p - 1))
-    print(f"F-statistic: {f_statistic}")
-
-    draw_plots(test_regressor_all, test_tau_mes_all, a, time_step, cur_dir)
-
-
+def run():
+    config = Part1Config()
+    collect_data(config)
 
 def main():
-    collect_data()
+    run()
+
 
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-   

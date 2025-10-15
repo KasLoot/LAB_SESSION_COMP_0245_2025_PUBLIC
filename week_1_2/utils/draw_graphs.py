@@ -2,10 +2,16 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-def draw_plots(regressor_all: np.ndarray, tau_mes_all: np.ndarray, a_constructed: np.ndarray, time_step: float, cur_dir: str):
+def draw_plots(regressor_all: np.ndarray,
+               tau_mes_all: np.ndarray, 
+               a: np.ndarray, 
+               time_step: float, 
+               save_plots: bool,
+               show_plots: bool,
+               save_dir: str):
 
     # TODO plot the torque prediction error for each joint (optional)
-    reg_pred = regressor_all.transpose((1, 0, 2))@a_constructed
+    reg_pred = regressor_all.transpose((1, 0, 2))@a
     reg_pred = np.expand_dims(reg_pred, axis=-1)
     tau_mes_all = np.expand_dims(tau_mes_all.transpose((1, 0)), axis=-1)
     print(f"reg_pred shape: {reg_pred.shape}")
@@ -43,10 +49,12 @@ def draw_plots(regressor_all: np.ndarray, tau_mes_all: np.ndarray, a_constructed
             ax.set_xlabel('Time (s)', fontsize=10)
     
     plt.tight_layout()
-    plot1_path = os.path.join(cur_dir, "part1_torque_prediction_vs_measurement.png")
-    # plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
-    # print(f"Saved plot to {plot1_path}")
-    plt.show()
+    plot1_path = os.path.join(save_dir, "part1_torque_prediction_vs_measurement.png")
+    if save_plots:
+        plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
+        print(f"Saved plot to {plot1_path}")
+    if show_plots:
+        plt.show()
 
     # Plot prediction errors for each joint
     fig2, axes2 = plt.subplots(7, 1, figsize=(12, 14))
@@ -81,10 +89,12 @@ def draw_plots(regressor_all: np.ndarray, tau_mes_all: np.ndarray, a_constructed
             ax.set_xlabel('Time (s)', fontsize=10)
     
     plt.tight_layout()
-    plot2_path = os.path.join(cur_dir, "part1_torque_prediction_error.png")
-    # plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
-    # print(f"Saved plot to {plot2_path}")
-    plt.show()
+    plot2_path = os.path.join(save_dir, "part1_torque_prediction_error.png")
+    if save_plots:
+        plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
+        print(f"Saved plot to {plot2_path}")
+    if show_plots:
+        plt.show()
 
     # Plot error distribution histograms
     fig3, axes3 = plt.subplots(7, 1, figsize=(12, 14))
@@ -118,10 +128,12 @@ def draw_plots(regressor_all: np.ndarray, tau_mes_all: np.ndarray, a_constructed
             ax.set_xlabel('Error (Nm)', fontsize=10)
     
     plt.tight_layout()
-    plot3_path = os.path.join(cur_dir, "part1_torque_error_distribution.png")
-    # plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
-    # print(f"Saved plot to {plot3_path}")
-    plt.show()
+    plot3_path = os.path.join(save_dir, "part1_torque_error_distribution.png")
+    if save_plots:
+        plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
+        print(f"Saved plot to {plot3_path}")
+    if show_plots:
+        plt.show()
 
     # Plot overall error statistics comparison across joints
     fig4, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -166,7 +178,9 @@ def draw_plots(regressor_all: np.ndarray, tau_mes_all: np.ndarray, a_constructed
     ax2.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plot4_path = os.path.join(cur_dir, "part1_error_statistics_comparison.png")
-    # plt.savefig(plot4_path, dpi=300, bbox_inches='tight')
-    # print(f"Saved plot to {plot4_path}")
-    plt.show()
+    plot4_path = os.path.join(save_dir, "part1_error_statistics_comparison.png")
+    if save_plots:
+        plt.savefig(plot4_path, dpi=300, bbox_inches='tight')
+        print(f"Saved plot to {plot4_path}")
+    if show_plots:
+        plt.show()

@@ -3,7 +3,7 @@ import time
 import os
 import matplotlib.pyplot as plt
 from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl, SinusoidalReference 
-from draw_graphs import draw_plots
+from week_1_2.utils.draw_graphs import draw_plots
 
 def initialize_robot(conf_file_name, cur_dir, sim: pb.SimInterface, source_names):
 

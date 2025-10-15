@@ -92,7 +92,7 @@ def collect_data():
     # Simulation parameters
     time_step = sim.GetTimeStep()
     print(f"time step: {time_step}")
-    max_time = 50  # seconds
+    max_time = 10  # seconds
     
     # Command and control loop
     cmd = MotorCommands()  # Initialize command structure for motors
@@ -123,12 +123,12 @@ def collect_data():
     print(f"regressor_last_joint shape: {regressor_last_joint.shape}")
 
     
-    p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
-    p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0, 0.3, 0, 0.3])
+    p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+    p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+    p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+    p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+    p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+    p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
 
     a_known = np.concatenate((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6))
     print(f"a_known shape: {a_known.shape}")
@@ -153,19 +153,40 @@ def collect_data():
 
     np.save("./a_part1_test.npy", a)
 
+    evaluate_model(sim, dyn_model, cur_dir, a)
+
+
+def evaluate_model(sim: pb.SimInterface, dyn_model: PinWrapper, cur_dir: str, a: np.ndarray):
+    amplitude = np.array([np.pi/4, np.pi/6, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4])
+    frequency = np.random.rand(1, 7)
+
+    ref = SinusoidalReference(amplitude, frequency[0], sim.GetInitMotorAngles())  # Initialize the reference
+    time_step = sim.GetTimeStep()
+    max_time = 10  # seconds
+    current_time = 0
+    cmd = MotorCommands()  # Initialize command structure for motors
+    kp = 1000
+    kd = 100
+    test_regressor_all = []
+    test_tau_mes_all = []
+    collect_data_single_trajectory(dyn_model, cmd, sim, ref, kp, kd, time_step, max_time, current_time, test_regressor_all, test_tau_mes_all)
+    test_tau_mes_all = np.array(test_tau_mes_all)[1000:]
+    test_regressor_all = np.array(test_regressor_all)[1000:]
+
+
     # TODO compute the metrics (R-squared adjusted etc...) for the linear model on a different file
-    tau_pred = regressor_all @ a
+    tau_pred = test_regressor_all @ a
     print(f"tau_pred shape: {tau_pred.shape}")
-    residuals = tau_mes_all - tau_pred
+    residuals = test_tau_mes_all - tau_pred
     print(f"residuals shape: {residuals.shape}")
 
     rss = np.sum(residuals**2)
-    tss = np.sum((tau_mes_all - np.mean(tau_mes_all))**2)
+    tss = np.sum((test_tau_mes_all - np.mean(test_tau_mes_all))**2)
     r_squared = 1 - (rss / tss)
     print(f"R-squared: {r_squared}")
 
-    n = regressor_all.shape[0]  # number of observations
-    p = regressor_all.shape[1]  # number of predictors
+    n = test_regressor_all.shape[0]  # number of observations
+    p = test_regressor_all.shape[1]  # number of predictors
     r_squared_adj = 1 - (1 - r_squared) * (n - 1) / (n - p - 1)
     print(f"Adjusted R-squared: {r_squared_adj}")
 
@@ -174,7 +195,7 @@ def collect_data():
     f_statistic = (mss / p) / (rss / (n - p - 1))
     print(f"F-statistic: {f_statistic}")
 
-    draw_plots(regressor_all, tau_mes_all, a, time_step, cur_dir)
+    draw_plots(test_regressor_all, test_tau_mes_all, a, time_step, cur_dir)
 
 
 

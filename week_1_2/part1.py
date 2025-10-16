@@ -18,8 +18,8 @@ class Part1Config:
     collection_max_time_per_trajectory: float = 10.0  # seconds
     skip_initial: int = 1000  # number of initial samples to skip
 
-    num_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0])  # Number of trajectories for each type
-    evaluation_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0])  # Number of evaluation trajectories for each type
+    num_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 1])  # Number of trajectories for each type
+    evaluation_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 1])  # Number of evaluation trajectories for each type
 
     train_mix: bool = False  # Whether to mix trajectory types during training
     evaluation_mix: bool = False   # Whether to mix trajectory types during evaluation

@@ -349,7 +349,7 @@ def generate_linear_ramp_trajectory(init_pos):
     return traj
 
 def generate_trajectories(init_pos,
-                          num_trajectories: list[int] =[1,0,0,0,0,0],
+                          num_trajectories: list[int],
                           mix: bool = False):
     
     # Create different types of trajectories for data collection
@@ -358,7 +358,7 @@ def generate_trajectories(init_pos,
     trajs = []
     for i, num in enumerate(num_trajectories):
         if num > 0:
-            trajs.append(traj_types[i]*num)
+            trajs.extend([traj_types[i]] * num)
     
     if mix:
         np.random.shuffle(trajs)

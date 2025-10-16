@@ -18,17 +18,17 @@ class Part1Config:
     collection_max_time_per_trajectory: float = 10.0  # seconds
     skip_initial: int = 1000  # number of initial samples to skip
 
-    num_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 1])  # Number of trajectories for each type
-    evaluation_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 1])  # Number of evaluation trajectories for each type
+    num_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 0])  # Number of trajectories for each type
+    evaluation_trajectories: list = field(default_factory=lambda: [3, 1, 1, 1, 1, 3])  # Number of evaluation trajectories for each type
 
-    train_mix: bool = False  # Whether to mix trajectory types during training
-    evaluation_mix: bool = False   # Whether to mix trajectory types during evaluation
+    train_mix: bool = True  # Whether to mix trajectory types during training
+    evaluation_mix: bool = True  # Whether to mix trajectory types during evaluation
 
     run_evaluation: bool = True
 
     save_model: bool = True
-    save_plots: bool = True
-    show_plots: bool = False
+    save_plots: bool = False
+    show_plots: bool = True
     model_save_path: str = os.path.join(cur_dir, "checkpoints", "a_part1.npy")
     plots_save_dir: str = os.path.join(cur_dir, "plots_part1")
 
@@ -106,6 +106,7 @@ def collect_data(config: Part1Config):
     sim, dyn_model, num_joints = initialize_robot(config)
     initial_motor_angles = sim.GetInitMotorAngles()
 
+    print(f"Number of trajectories: {config.num_trajectories}")
     ref = generate_trajectories(initial_motor_angles,
                                 num_trajectories=config.num_trajectories,
                                 mix=config.evaluation_mix)
@@ -157,10 +158,9 @@ def collect_data(config: Part1Config):
     tau_real = tau_mes_all[:, :6] - tau_real
 
     tau_mixed = np.concatenate((tau_real, np.expand_dims(tau_mes_all[:, 6], axis=1)), axis=1)
-    print(f"tau_mixed shape: {tau_mixed.shape}")
 
     a_last_joint = np.linalg.pinv(np.vstack(regressor_all[:,:,60:])) @ np.hstack(tau_mixed)
-    print(f"a computed shape: {a_last_joint.shape}")
+    print(f"a_last_joint shape: {a_last_joint.shape}")
     print(f"a_last_joint: {a_last_joint}")
 
     a = np.hstack((a_known, a_last_joint))

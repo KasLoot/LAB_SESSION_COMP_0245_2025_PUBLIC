@@ -29,10 +29,10 @@ class EvaluationConfig:
     collection_max_time_per_trajectory: float = 10.0
     skip_initial: int = 1000
 
-    evaluation_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0])
+    evaluation_trajectories: list = field(default_factory=lambda: [1, 1, 1, 1, 1, 1])
     evaluation_mix: bool = False
 
-    part = "part1"
+    part = "part2"
     model_path: str = os.path.join(cur_dir, "checkpoints", f"a_{part}.npy")
     save_plots: bool = True
     show_plots: bool = False

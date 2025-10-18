@@ -32,7 +32,7 @@ class EvaluationConfig:
     evaluation_trajectories: list = field(default_factory=lambda: [1, 1, 1, 1, 1, 1])
     evaluation_mix: bool = False
 
-    part = "part2"
+    part: str = "part2"
     model_path: str = os.path.join(cur_dir, "checkpoints", f"a_{part}.npy")
     save_plots: bool = True
     show_plots: bool = False

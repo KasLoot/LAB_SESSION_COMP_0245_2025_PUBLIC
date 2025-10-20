@@ -4,6 +4,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 # 1. Data Preparation
 # Define transformations for the training and test sets
@@ -22,32 +23,64 @@ test_dataset = datasets.MNIST(root='./data', train=False,
 train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
 test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
 
+
+# def swiglu(x, alpha: float = 1.702, limit: float = 7.0):
+#     x_glu, x_linear = x[..., ::2], x[..., 1::2]
+#     # Clamp the input values
+#     x_glu = x_glu.clamp(min=None, max=limit)
+#     x_linear = x_linear.clamp(min=-limit, max=limit)
+#     out_glu = x_glu * torch.sigmoid(alpha * x_glu)
+#     # Note we add an extra bias of 1 to the linear layer
+#     return out_glu * (x_linear + 1)
+
 # 2. Model Construction
-class MLP(nn.Module): # tottally 25450 parameters
+class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
-        self.flatten = nn.Flatten()
-        self.hidden = nn.Linear(28*28, 32)
-        self.relu = nn.ReLU()
-        self.output = nn.Linear(32, 10)
+        self.model = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(28*28, 16),
+            nn.RMSNorm(16, eps=1e-6),
+            nn.Linear(16, 16),
+            nn.RMSNorm(16, eps=1e-6),
+            nn.Linear(16, 8),
+            nn.RMSNorm(8, eps=1e-6),
+            nn.Linear(8, 8),
+            nn.RMSNorm(8, eps=1e-6),
+            nn.Linear(8, 10),
+            nn.RMSNorm(10, eps=1e-6),
+            nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
+        )
+        # self.flatten = nn.Flatten()
+        # self.rms1 = nn.RMSNorm(28*28, eps=1e-6)
+        # self.mlp1 = nn.Linear(28*28, 32)
+        # self.rms2 = nn.RMSNorm(32, eps=1e-6)
+        # self.dropout1 = nn.Dropout(0.1)
+        # self.mlp2 = nn.Linear(32, 16)
+        # self.rms3 = nn.RMSNorm(16, eps=1e-6)
+        # self.dropout2 = nn.Dropout(0.1)
+        # self.mlp3 = nn.Linear(16, 8)
+        # self.rms4 = nn.RMSNorm(8, eps=1e-6)
+        # self.dropout3 = nn.Dropout(0.1)
+        # self.mlp4 = nn.Linear(8, 8)
+        # self.rms5 = nn.RMSNorm(8, eps=1e-6)
+        # self.mlp5 = nn.Linear(8, 10)
+
         self.softmax = nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
 
     def forward(self, x):
-        x = self.flatten(x)
-        x = self.hidden(x)
-        x = self.relu(x)
-        x = self.output(x)
-        x = self.softmax(x)
+        x = self.model(x)
         return x
 
-model = MLP()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = MLP().to(device)
 
 model_params = sum(p.numel() for p in model.parameters())
 print(f'Total model parameters: {model_params}')
 
 # 3. Model Compilation
 criterion = nn.NLLLoss()  # Negative Log Likelihood Loss (used with LogSoftmax)
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 # 4. Model Training
 epochs = 20
@@ -60,6 +93,7 @@ for epoch in range(epochs):
     correct = 0
 
     for data, target in train_loader:
+        data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = criterion(output, target)  # target is not one-hot encoded in PyTorch

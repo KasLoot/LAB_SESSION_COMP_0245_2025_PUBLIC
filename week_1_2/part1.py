@@ -19,7 +19,7 @@ class Part1Config:
     skip_initial: int = 1000  # number of initial samples to skip
 
     num_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 0])  # Number of trajectories for each type
-    evaluation_trajectories: list = field(default_factory=lambda: [3, 1, 1, 1, 1, 3])  # Number of evaluation trajectories for each type
+    evaluation_trajectories: list = field(default_factory=lambda: [1, 0, 0, 0, 0, 0])  # Number of evaluation trajectories for each type
 
     train_mix: bool = True  # Whether to mix trajectory types during training
     evaluation_mix: bool = True  # Whether to mix trajectory types during evaluation

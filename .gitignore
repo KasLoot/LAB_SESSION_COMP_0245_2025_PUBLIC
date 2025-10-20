@@ -6,3 +6,7 @@
 
 # Ignore Python cache files
 **/__pycache__/
+
+# Ignore week_4 data directory
+week_4/data/
+

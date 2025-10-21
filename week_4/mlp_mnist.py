@@ -5,6 +5,8 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
+torch.manual_seed(32)
+
 # 1. Data Preparation
 # Define transformations for the training and test sets
 transform = transforms.Compose([
@@ -40,7 +42,10 @@ class MLP(nn.Module): # tottally 25450 parameters
         x = self.softmax(x)
         return x
 
-model = MLP()
+
+device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+
+model = MLP().to(device)
 
 model_params = sum(p.numel() for p in model.parameters())
 print(f'Total model parameters: {model_params}')
@@ -60,6 +65,7 @@ for epoch in range(epochs):
     correct = 0
 
     for data, target in train_loader:
+        data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = criterion(output, target)  # target is not one-hot encoded in PyTorch
@@ -82,6 +88,7 @@ correct = 0
 
 with torch.no_grad():
     for data, target in test_loader:
+        data, target = data.to(device), target.to(device)
         output = model(data)
         test_loss += criterion(output, target).item()
         pred = output.argmax(dim=1, keepdim=True)

@@ -6,6 +6,9 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
+torch.manual_seed(32)
+
+
 # 1. Data Preparation
 # Define transformations for the training and test sets
 transform = transforms.Compose([
@@ -39,19 +42,20 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.model = nn.Sequential(
             nn.Flatten(),
-            nn.RMSNorm(28*28, eps=1e-6),
-            nn.Linear(28*28, 32),
-            nn.RMSNorm(32, eps=1e-6),
-            nn.Dropout(0.1),
-            nn.Linear(32, 16),
+            nn.Linear(28*28, 16),
             nn.RMSNorm(16, eps=1e-6),
-            nn.Dropout(0.1),
+            nn.SiLU(),
+            nn.Linear(16, 16),
+            nn.RMSNorm(16, eps=1e-6),
+            nn.SiLU(),
             nn.Linear(16, 8),
             nn.RMSNorm(8, eps=1e-6),
-            nn.Dropout(0.1),
+            nn.SiLU(),
             nn.Linear(8, 8),
             nn.RMSNorm(8, eps=1e-6),
+            nn.SiLU(),
             nn.Linear(8, 10),
+            nn.RMSNorm(10, eps=1e-6),
             nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
         )
         # self.flatten = nn.Flatten()
@@ -75,7 +79,8 @@ class MLP(nn.Module):
         x = self.model(x)
         return x
 
-model = MLP()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = MLP().to(device)
 
 model_params = sum(p.numel() for p in model.parameters())
 print(f'Total model parameters: {model_params}')
@@ -95,6 +100,7 @@ for epoch in range(epochs):
     correct = 0
 
     for data, target in train_loader:
+        data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = criterion(output, target)  # target is not one-hot encoded in PyTorch

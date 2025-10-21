@@ -48,41 +48,26 @@ class MLP(nn.Module):
             nn.Linear(16, 16),
             nn.RMSNorm(16, eps=1e-6),
             nn.SiLU(),
-            nn.Linear(16, 8),
-            nn.RMSNorm(8, eps=1e-6),
+            nn.Linear(16, 16),
+            nn.RMSNorm(16, eps=1e-6),
             nn.SiLU(),
-            nn.Linear(8, 8),
-            nn.RMSNorm(8, eps=1e-6),
+            nn.Linear(16, 16),
+            nn.RMSNorm(16, eps=1e-6),
             nn.SiLU(),
-            nn.Linear(8, 10),
+            nn.Linear(16, 10),
             nn.RMSNorm(10, eps=1e-6),
             nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
         )
-        # self.flatten = nn.Flatten()
-        # self.rms1 = nn.RMSNorm(28*28, eps=1e-6)
-        # self.mlp1 = nn.Linear(28*28, 32)
-        # self.rms2 = nn.RMSNorm(32, eps=1e-6)
-        # self.dropout1 = nn.Dropout(0.1)
-        # self.mlp2 = nn.Linear(32, 16)
-        # self.rms3 = nn.RMSNorm(16, eps=1e-6)
-        # self.dropout2 = nn.Dropout(0.1)
-        # self.mlp3 = nn.Linear(16, 8)
-        # self.rms4 = nn.RMSNorm(8, eps=1e-6)
-        # self.dropout3 = nn.Dropout(0.1)
-        # self.mlp4 = nn.Linear(8, 8)
-        # self.rms5 = nn.RMSNorm(8, eps=1e-6)
-        # self.mlp5 = nn.Linear(8, 10)
-
-        self.softmax = nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
 
     def forward(self, x):
         x = self.model(x)
         return x
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 model = MLP().to(device)
+torch.compile(model)
 
-model_params = sum(p.numel() for p in model.parameters())
+model_params = sum(p.numel() for p in model.model.parameters())
 print(f'Total model parameters: {model_params}')
 
 # 3. Model Compilation
@@ -123,6 +108,7 @@ correct = 0
 
 with torch.no_grad():
     for data, target in test_loader:
+        data, target = data.to(device), target.to(device)
         output = model(data)
         test_loss += criterion(output, target).item()
         pred = output.argmax(dim=1, keepdim=True)
@@ -133,7 +119,16 @@ test_accuracy = 100. * correct / len(test_loader.dataset)
 
 print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
 
-
+model_save_path = './checkpoints/task_1.pth'
+model_dict = {
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'train_loss': train_losses[-1],
+    'train_accuracy': train_accuracy,
+    'test_loss': test_loss,
+    'test_accuracy': test_accuracy
+}
+torch.save(model_dict, model_save_path)
 
 
 

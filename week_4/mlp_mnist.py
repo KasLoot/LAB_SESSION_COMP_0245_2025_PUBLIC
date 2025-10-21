@@ -4,6 +4,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 torch.manual_seed(32)
 
@@ -46,6 +47,7 @@ class MLP(nn.Module): # tottally 25450 parameters
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 model = MLP().to(device)
+torch.compile(model)
 
 model_params = sum(p.numel() for p in model.parameters())
 print(f'Total model parameters: {model_params}')
@@ -59,12 +61,12 @@ epochs = 20
 train_losses = []
 valid_losses = []
 
-for epoch in range(epochs):
+for epoch in tqdm(range(epochs), desc="Training Epochs"):
     model.train()
     epoch_loss = 0
     correct = 0
 
-    for data, target in train_loader:
+    for data, target in tqdm(train_loader, desc="Training Steps"):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
@@ -99,7 +101,16 @@ test_accuracy = 100. * correct / len(test_loader.dataset)
 
 print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
 
-
+model_save_path = './checkpoints/base_model.pth'
+model_dict = {
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'train_loss': train_losses[-1],
+    'train_accuracy': train_accuracy,
+    'test_loss': test_loss,
+    'test_accuracy': test_accuracy
+}
+torch.save(model_dict, model_save_path)
 
 
 

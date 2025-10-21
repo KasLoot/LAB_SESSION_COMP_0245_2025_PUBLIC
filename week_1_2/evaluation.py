@@ -223,6 +223,20 @@ def compute_metrics(
         overall_adj_r2 = np.nan
         overall_f = np.nan
 
+    from scipy import stats
+    alpha = 0.05
+    df = dof_resid_joint
+    std_error = np.sqrt(ss_res / df)
+    t_value = stats.t.ppf(1 - alpha/2, df)
+
+    ci_lower = error.mean(axis=0) - t_value * std_error/np.sqrt(num_samples)
+    ci_upper = error.mean(axis=0) + t_value * std_error/np.sqrt(num_samples)
+    
+    overall_std_error = np.sqrt(overall_ss_res / dof_resid_overall)
+    overall_t = stats.t.ppf(1 - alpha/2, dof_resid_overall)
+    overall_ci_lower = error.mean() - overall_t * overall_std_error/np.sqrt(total_observations)
+    overall_ci_upper = error.mean() + overall_t * overall_std_error/np.sqrt(total_observations)
+
     metrics = {
         "mae": mae,
         "rmse": rmse,
@@ -230,11 +244,15 @@ def compute_metrics(
         "r2": r2,
         "adj_r2": adj_r2,
         "f_stat": f_stat,
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
         "overall_rmse": overall_rmse,
         "overall_mae": overall_mae,
         "overall_r2": overall_r2,
         "overall_adj_r2": overall_adj_r2,
         "overall_f": overall_f,
+        "overall_ci_lower": overall_ci_lower,
+        "overall_ci_upper": overall_ci_upper,
         "torque_pred": torque_pred,
         "error": error,
         "dof_model": dof_model,
@@ -288,14 +306,16 @@ def evaluate_model(config: EvaluationConfig) -> Dict[str, np.ndarray]:
             f"Max |error|={max_abs[joint_idx]:.4f} Nm, "
             f"R²={r2[joint_idx]:.4f}, "
             f"Adj. R²={adj_r2[joint_idx]:.4f}, "
-            f"F={f_stat[joint_idx]:.4f}"
+            f"F={f_stat[joint_idx]:.4f},"
+            f"Error CI=[{metrics['ci_lower'][joint_idx]:.4f}, {metrics['ci_upper'][joint_idx]:.4f}] Nm"
         )
     print(
         f"Overall MAE={metrics['overall_mae']:.4f} Nm, "
         f"Overall RMSE={metrics['overall_rmse']:.4f} Nm, "
         f"R²={metrics['overall_r2']:.4f}, "
         f"Adj. R²={metrics['overall_adj_r2']:.4f}, "
-        f"F={metrics['overall_f']:.4f}"
+        f"F={metrics['overall_f']:.4f}",
+        f"Error CI=[{metrics['overall_ci_lower']:.4f}, {metrics['overall_ci_upper']:.4f}] Nm"
     )
     print(
         f"Degrees of freedom: model={dof_model}, "

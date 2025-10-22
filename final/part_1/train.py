@@ -10,6 +10,9 @@ from model import Part_1_Model
 
 from tqdm import tqdm
 
+import os
+from pathlib import Path
+
 
 @dataclass
 class TrainingConfig:
@@ -34,6 +37,9 @@ def train_model(config: TrainingConfig = TrainingConfig()):
     criterion = nn.SmoothL1Loss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
+    best_val_loss = float('inf')
+    model_save_dir = "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints"
+
     for epoch in range(config.num_epochs):
         model.train()
         for i, batch in enumerate(train_dataloader):
@@ -54,6 +60,20 @@ def train_model(config: TrainingConfig = TrainingConfig()):
                 logits = model(q_diff)
                 val_loss = criterion(logits, tau_mes)
         print(f"Epoch [{epoch+1}/{config.num_epochs}], Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}")
+
+        if val_loss.item() < best_val_loss:
+            best_val_loss = val_loss.item()
+            model_state = {
+                'epoch': epoch + 1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': loss.item(),
+                'val_loss': val_loss.item(),
+            }
+            # Create checkpoints directory if it doesn't exist
+            Path(model_save_dir).mkdir(parents=True, exist_ok=True)
+            torch.save(model_state, f"{model_save_dir}/best_part_1_model.pth")
+            print(f"Saved Best Model with Val Loss: {best_val_loss:.4f}")
 
         
 

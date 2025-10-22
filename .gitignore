@@ -10,6 +10,8 @@
 # Ignore week_4 data directory
 week_4/data/
 
+final/data/
+
 ml_lab/
 
 */checkpoints/

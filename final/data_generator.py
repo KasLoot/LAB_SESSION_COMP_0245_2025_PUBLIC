@@ -15,6 +15,10 @@ from pathlib import Path
 FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
 FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
 
+# Create data directory
+DATA_DIR = FINAL_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)  # create if it doesn't exist
+
 
 PRINT_PLOTS = False  # Set to True to enable plotting
 RECORDING = True  # Set to True to enable data recording
@@ -91,7 +95,7 @@ def main():
     # desired cartesian position
     list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
                                            [0.4,0.2,0.1], 
-                                           [0.4,-0.2,0.1], 
+                                           [0.4,-0.5,0.1], 
                                            [0.5,0.0,0.1]]
     # desired cartesian orientation in quaternion (XYZW)
     list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
@@ -189,12 +193,14 @@ def main():
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
             # Save data to pickle file and for name use the current iteration number
-            filename = FINAL_DIR / f"data_{i}.pkl"
+            filename = DATA_DIR / f"data_{i}.pkl"
             with open(filename, 'wb') as f:
                 pickle.dump({
                     'time': time_array,
                     'q_mes_all': q_mes_all_downsampled,
                     'qd_mes_all': qd_mes_all_downsampled,
+                    'q_d_all': q_d_all_downsampled,
+                    'qd_d_all': qd_d_all_downsampled,
                     'tau_mes_all': tau_mes_all_downsampled,
                     'cart_pos_all': cart_pos_all_downsampled,
                     'cart_ori_all': cart_ori_all_downsampled
@@ -236,6 +242,6 @@ def main():
 if __name__ == '__main__':
     main()
     # test rollout loader
-    rls = load_rollouts(indices=[0,1,2,3], directory=FINAL_DIR)  # looks for ./data_1.pkl or ./1.pkl, up to 4
+    rls = load_rollouts(indices=[0,1,2,3], directory=DATA_DIR)  # looks for ./data/data_1.pkl or ./data/1.pkl, up to 4
     print(f"Loaded {len(rls)} rollouts")
     print("First rollout keys lengths:",len(rls[0].time),len(rls[0].q_mes_all),len(rls[0].qd_mes_all))

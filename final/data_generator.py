@@ -93,18 +93,31 @@ def main():
     kd = 100
 
     # desired cartesian position
-    list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
-                                           [0.4,0.2,0.1], 
-                                           [0.4,-0.5,0.1], 
-                                           [0.5,0.0,0.1]]
+    # Generate random positions with specified ranges
+    num_positions = 20
+    list_of_desired_cartesian_positions = []
+    for _ in range(num_positions):
+        # First element: [-0.5:-0.2] or [0.2:0.5]
+        x = np.random.choice([np.random.uniform(-0.5, -0.2), np.random.uniform(0.2, 0.5)])
+        # Second element: [-0.5:-0.2] or [0.2:0.5]
+        y = np.random.choice([np.random.uniform(-0.5, -0.2), np.random.uniform(0.2, 0.5)])
+        # Third element: [0.1:0.5]
+        z = np.random.uniform(0.1, 0.5)
+        list_of_desired_cartesian_positions.append([x, y, z])
+    
     # desired cartesian orientation in quaternion (XYZW)
-    list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
-                                              [0.0, 0.0, 0.0, 1.0],
-                                              [0.0, 0.0, 0.0, 1.0],
-                                              [0.0, 0.0, 0.0, 1.0]]
-    list_of_type_of_control = ["pos", "pos", "pos", "pos"] # "pos",  "ori" or "both"
-    list_of_duration_per_desired_cartesian_positions = [5.0, 5.0, 5.0, 5.0] # in seconds
-    list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
+    # Generate random unit quaternions
+    list_of_desired_cartesian_orientations = []
+    for _ in range(num_positions):
+        # Generate random quaternion components
+        quat = np.random.randn(4)
+        # Normalize to make it a unit quaternion
+        quat = quat / np.linalg.norm(quat)
+        list_of_desired_cartesian_orientations.append(quat.tolist())
+    
+    list_of_type_of_control = ["pos"] * num_positions # "pos",  "ori" or "both"
+    list_of_duration_per_desired_cartesian_positions = [5.0] * num_positions # in seconds
+    list_of_initialjoint_positions = [init_joint_angles] * num_positions
 
     # Initialize data storage
     q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
@@ -161,7 +174,7 @@ def main():
 
             
             # Conditional data recording
-            if RECORDING:
+            if RECORDING and t>1000:
                 q_mes_all.append(q_mes)
                 qd_mes_all.append(qd_mes)
                 q_d_all.append(q_des)

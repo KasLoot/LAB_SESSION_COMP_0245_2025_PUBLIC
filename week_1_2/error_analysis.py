@@ -5,6 +5,7 @@ from tqdm import tqdm
 from typing import Tuple
 from simulation_and_control import pb, PinWrapper, MotorCommands
 from part1 import Part1Config, initialize_robot, generate_trajectories, collect_data_single_trajectory
+from part2 import Part2Config
 from evaluation import EvaluationConfig, compute_metrics
 
 
@@ -132,45 +133,44 @@ def run_all_regression_methods(Y, tau):
     return a_adj
 
 
-def compute_model_parameters(config: Part1Config, tau_mes_all, regressor_all):
+def compute_model_parameters(part, tau_mes_all, regressor_all):
     assert tau_mes_all.shape[0] == regressor_all.shape[0], "Mismatch in number of samples between tau and regressor"
     print(f"Train samples collected: {tau_mes_all.shape[0]}")
 
-    regressor_6_joints = regressor_all[:, :6, :60]
+    a = None
+    if part == "part1":
+        regressor_6_joints = regressor_all[:, :6, :60]
 
-    p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
-    p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
-    p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
-    p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
-    p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
-    p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+        p_l1 = np.array([2.34, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+        p_l2 = np.array([2.36, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+        p_l3 = np.array([2.38, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+        p_l4 = np.array([2.43, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+        p_l5 = np.array([3.5, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
+        p_l6 = np.array([1.47, 0, 0, 0, 0.3, 0, 0.3, 0.0, 0.0, 0.3])
 
-    a_known = np.concatenate((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6))
-    tau_real = regressor_6_joints @ a_known
-    tau_real = tau_mes_all[:, :6] - tau_real
+        a_known = np.concatenate((p_l1, p_l2, p_l3, p_l4, p_l5, p_l6))
+        tau_real = regressor_6_joints @ a_known
+        tau_real = tau_mes_all[:, :6] - tau_real
 
-    tau_mixed = np.concatenate(
-        (tau_real, np.expand_dims(tau_mes_all[:, 6], axis=1)), axis=1)
+        tau_mixed = np.concatenate(
+            (tau_real, np.expand_dims(tau_mes_all[:, 6], axis=1)), axis=1)
 
-    a_last_joint = np.linalg.pinv(np.vstack(regressor_all[:,:,60:])) @ np.hstack(tau_mixed)
-    print(f"a_last_joint shape: {a_last_joint.shape}")
-    print(f"a_last_joint: {a_last_joint}")
+        a_last_joint = np.linalg.pinv(np.vstack(regressor_all[:,:,60:])) @ np.hstack(tau_mixed)
+        print(f"a_last_joint shape: {a_last_joint.shape}")
+        print(f"a_last_joint: {a_last_joint}")
 
-    a = np.hstack((a_known, a_last_joint))
+        a = np.hstack((a_known, a_last_joint))
+    elif part == "part2":
+        tau_mes_all = np.array(tau_mes_all)
+        new_tau_mes_all = tau_mes_all.reshape(-1)
+        regressor_all = np.array(regressor_all)
+        new_regressor_all = regressor_all.reshape(-1, 70)
 
-    """ill-condition"""
-    # a_adj = run_all_regression_methods(
-    #     np.vstack(regressor_all[:, :, 60:]), np.hstack(tau_mixed))
-    # for i, a in enumerate(a_adj):
-    #     a_adj[i] = np.hstack((a_known, a))
+        a = np.linalg.pinv(new_regressor_all)@new_tau_mes_all
+        print(f"a shape: {a.shape}")
+        print(a[60:])
 
-    # if config.save_model:
-    #     os.makedirs(os.path.dirname(config.model_save_path), exist_ok=True)
-    #     np.save(config.model_save_path, a)
-    #     print(f"Model parameters saved to {config.model_save_path}")
-
-    # if config.run_evaluation:
-    #     evaluate_model(config, sim, dyn_model, time_step, initial_motor_angles, a)
+        run_all_regression_methods(new_regressor_all, new_tau_mes_all)
 
     return a
 
@@ -268,9 +268,9 @@ def drop_rate_test():
 
 
 def ill_conditioning_test():
-    cfg = Part1Config(show_plots=False, save_plots=False,
-                      num_trajectories=[1, 0, 0, 0, 0, 0])
-    eval_cfg = EvaluationConfig(part="part1", show_plots=False,
+    cfg = Part2Config(show_plots=False, save_plots=False,
+                      num_trajectories=[1, 1, 1, 1, 1, 1])
+    eval_cfg = EvaluationConfig(part="part2", show_plots=False,
                                 save_plots=False, evaluation_trajectories=[1, 1, 1, 1, 1, 1])
     sim, dyn_model, num_joints = initialize_robot(cfg)
     initial_motor_angles = sim.GetInitMotorAngles()
@@ -281,11 +281,10 @@ def ill_conditioning_test():
     regressor_test, tau_mes_test = collect_dataset(
         eval_cfg, sim, dyn_model, time_step, initial_motor_angles)
 
-    a_adj = compute_model_parameters(cfg, tau_mes_all, regressor_all)
+    a = compute_model_parameters("part2", tau_mes_all, regressor_all)
 
-    for a in a_adj:
-        metrics = compute_metrics(regressor_test, tau_mes_test, a)
-        format_output(metrics)
+    metrics = compute_metrics(regressor_test, tau_mes_test, a)
+    format_output(metrics)
 
 
 # def time_step():
@@ -314,4 +313,4 @@ def trajectory():
 
 
 if __name__ == "__main__":
-    drop_rate_test()
+    ill_conditioning_test()

@@ -92,20 +92,24 @@ def main():
     kp = 1000
     kd = 100
     
-    # Convergence threshold for joint angles (radians)
-    joint_angle_tolerance = 0.001  # Adjust this value as needed
+    # Convergence threshold for end-effector position (meters)
+    cartesian_pos_tolerance = 0.001  # Adjust this value as needed
 
     # desired cartesian position
     # Generate random positions with specified ranges
+    # Initial joint angles: [0.0, 1.0323, 0.0, 0.8247, 0.0, 1.57, 0.0]
+    # Lower limits: [-2.8973, -1.7628, -2.8973, 0.0, -2.8973, -0.0175, -2.8973]
+    # Upper limits: [2.8973, 1.7628, 2.8973, 3.002, 2.8973, 3.7525, 2.8973]
+    # joint vel limits: [2.175, 2.175, 2.175, 2.175, 2.61, 2.61, 2.61]
     num_positions = 20
     list_of_desired_cartesian_positions = []
     for _ in range(num_positions):
         # First element: [-0.5:-0.2] or [0.2:0.5]
-        x = np.random.choice([np.random.uniform(-0.5, -0.2), np.random.uniform(0.2, 0.5)])
+        x = np.random.uniform(0.3, 0.5)
         # Second element: [-0.5:-0.2] or [0.2:0.5]
-        y = np.random.choice([np.random.uniform(-0.5, -0.2), np.random.uniform(0.2, 0.5)])
-        # Third element: [0.1:0.5]
-        z = np.random.uniform(0.1, 0.5)
+        y = np.random.uniform(-0.4, 0.5)
+        # Third element: [0.1:0.6]
+        z = np.random.uniform(0.1, 0.6)
         list_of_desired_cartesian_positions.append([x, y, z])
     
     # desired cartesian orientation in quaternion (XYZW)
@@ -177,7 +181,7 @@ def main():
 
             
             # Conditional data recording
-            if RECORDING and t>1000:
+            if RECORDING and t > 10:
                 q_mes_all.append(q_mes)
                 qd_mes_all.append(qd_mes)
                 q_d_all.append(q_des)
@@ -186,10 +190,10 @@ def main():
                 cart_pos_all.append(cart_pos)
                 cart_ori_all.append(cart_ori)
 
-            # Check if joint angles have converged to desired values
-            joint_error = np.abs(np.array(q_mes) - np.array(q_des))
-            if np.all(joint_error < joint_angle_tolerance) and t > 1000:
-                print(f"Trajectory {i}: Joint angles converged at step {t} (time: {current_time:.2f}s)")
+            # Check if end-effector position has converged to desired values
+            cartesian_error = np.linalg.norm(np.array(cart_pos) - np.array(desired_cartesian_pos))
+            if cartesian_error < cartesian_pos_tolerance and t > 10:
+                print(f"Trajectory {i}: End-effector position converged at step {t} (time: {current_time:.2f}s)")
                 break
 
             # Time management

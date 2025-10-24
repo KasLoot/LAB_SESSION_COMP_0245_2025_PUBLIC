@@ -22,7 +22,7 @@ import numpy as np
 @dataclass
 class TrainingConfig:
     batch_size: int = 128
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-2
     num_epochs: int = 200
     device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -41,7 +41,7 @@ def train_model(config: TrainingConfig = TrainingConfig()):
     model = Part_1_Model(input_size=7, hidden_size=64, output_size=7).to(torch.float32)
     
     model.to(config.device)
-    
+
     criterion = nn.SmoothL1Loss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 

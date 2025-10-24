@@ -16,7 +16,7 @@ FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
 FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
 
 # Create data directory
-DATA_DIR = FINAL_DIR / "data"
+DATA_DIR = FINAL_DIR / "data" / "raw_data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)  # create if it doesn't exist
 
 
@@ -91,6 +91,9 @@ def main():
     # PD controller gains low level (feedback gain)
     kp = 1000
     kd = 100
+    
+    # Convergence threshold for joint angles (radians)
+    joint_angle_tolerance = 0.001  # Adjust this value as needed
 
     # desired cartesian position
     # Generate random positions with specified ranges
@@ -182,6 +185,12 @@ def main():
                 tau_mes_all.append(tau_mes)
                 cart_pos_all.append(cart_pos)
                 cart_ori_all.append(cart_ori)
+
+            # Check if joint angles have converged to desired values
+            joint_error = np.abs(np.array(q_mes) - np.array(q_des))
+            if np.all(joint_error < joint_angle_tolerance) and t > 1000:
+                print(f"Trajectory {i}: Joint angles converged at step {t} (time: {current_time:.2f}s)")
+                break
 
             # Time management
             time.sleep(time_step)  # Control loop timing

@@ -57,6 +57,7 @@ def solve_ik_pinocchio(
         pin.forwardKinematics(model, data, q)
         pin.updateFramePlacement(model, data, frame_id)
         oMf = data.oMf[frame_id]
+        desired_ori = pin.Quaternion(desired_ori).matrix()  # 3x3
 
         # --- 计算误差 ---
         # 平移误差
@@ -145,7 +146,7 @@ def generate_valid_targets(
 
             print(f"Testing pos {pos.round(3)} ... ")
             try:
-                q_sol = solve_ik_pinocchio(dyn_model.pin_model, dyn_model.pin_data, controlled_frame_name, pos, base_ori, np.array(init_joint_angles))
+                q_sol = solve_ik_pinocchio(dyn_model.pin_model, dyn_model.pin_data, controlled_frame_name, pos, quat, np.array(init_joint_angles))
                 print("IK result:", q_sol)
                 if q_sol is None:
                     continue
@@ -163,7 +164,7 @@ def generate_valid_targets(
                 break
             except Exception:
                 import traceback
-                print("❌ IK failed with error:")
+                print("❌ Generate failed with error:")
                 traceback.print_exc()
                 exit(0)
 
@@ -181,7 +182,7 @@ def generate_valid_targets(
             print(f"Testing pos {pos.round(3)} ... ")
             try:
                 q_sol = solve_ik_pinocchio(dyn_model.pin_model, dyn_model.pin_data, controlled_frame_name,
-                           pos, base_ori, np.array(init_joint_angles))
+                           pos, quat, np.array(init_joint_angles))
                 print("IK result:", q_sol)
                 if q_sol is None:
                     continue
@@ -281,7 +282,7 @@ def main():
         lower_limits=lower_limits,
         upper_limits=upper_limits,
         num_positions=num_positions,
-        local_ratio=0.7,  # 70% 来自局部扰动，30% 来自全局采样
+        local_ratio=0.7, 
     )
     list_of_type_of_control = ["pos"] * num_positions
     list_of_duration_per_desired_cartesian_positions = [5.0] * num_positions
@@ -342,7 +343,7 @@ def main():
 
             
             # Conditional data recording
-            if RECORDING and t>1000:
+            if RECORDING and t>100:
                 q_mes_all.append(q_mes)
                 qd_mes_all.append(qd_mes)
                 q_d_all.append(q_des)
@@ -353,7 +354,7 @@ def main():
 
             # Check if joint angles have converged to desired values
             joint_error = np.abs(np.array(q_mes) - np.array(q_des))
-            if np.all(joint_error < joint_angle_tolerance) and t > 1000:
+            if np.all(joint_error < joint_angle_tolerance) and t > 100:
                 print(f"Trajectory {i}: Joint angles converged at step {t} (time: {current_time:.2f}s)")
                 break
 

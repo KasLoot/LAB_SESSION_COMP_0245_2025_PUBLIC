@@ -63,19 +63,14 @@ class MLP(nn.Module):
         self.model = nn.Sequential(
             nn.Flatten(),
             nn.Linear(28*28, 28),
-            nn.RMSNorm(28, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(28, 16),
-            nn.RMSNorm(16, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(16, 16),
-            nn.RMSNorm(16, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(16, 16),
-            nn.RMSNorm(16, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(16, 10),
-            nn.RMSNorm(10, eps=1e-6),
             nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
         )
 

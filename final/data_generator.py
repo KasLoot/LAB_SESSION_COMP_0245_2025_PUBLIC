@@ -42,6 +42,29 @@ def get_downsample_rate():
         return None
 
 
+def model_predict(q_des, q_mes):
+    checkpoint = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth", weights_only=False)
+    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7)
+    model_state_dict = checkpoint["model_state_dict"]
+    model.load_state_dict(model_state_dict)
+    model.eval()
+    q_diff_std, q_diff_mean = checkpoint["q_diff_std"], checkpoint["q_diff_mean"]
+    qd_diff_std, qd_diff_mean = checkpoint["qd_diff_std"], checkpoint["qd_diff_mean"]
+    tau_cmd_std, tau_cmd_mean = checkpoint["tau_cmd_std"], checkpoint["tau_cmd_mean"]
+    # print(f"tau_cmd_std: {tau_cmd_std}, tau_cmd_mean: {tau_cmd_mean}")
+    # normalize q_des - q_mes
+    q_input = (torch.tensor(q_des - q_mes) - q_diff_mean) / (q_diff_std + 1e-8)
+    # print(f"q_input: {q_input}")
+    with torch.no_grad():
+        tau_cmd = model(q_input.to(torch.float32))
+        print(f"Raw tau_cmd from model: \n{tau_cmd}")
+        tau_cmd = tau_cmd * (tau_cmd_std + 1e-8) + tau_cmd_mean
+    tau_cmd = np.array(tau_cmd)
+    print(f"Denormalized tau_cmd from model: \n{tau_cmd}")
+
+    return tau_cmd
+
+
 def main():
 
     conf_file_name = "pandaconfig.json"  # Configuration file for the robot
@@ -103,13 +126,13 @@ def main():
     # Lower limits: [-2.8973, -1.7628, -2.8973, 0.0, -2.8973, -0.0175, -2.8973]
     # Upper limits: [2.8973, 1.7628, 2.8973, 3.002, 2.8973, 3.7525, 2.8973]
     # joint vel limits: [2.175, 2.175, 2.175, 2.175, 2.61, 2.61, 2.61]
-    num_positions = 10
+    num_positions = 100
     list_of_desired_cartesian_positions = []
     for _ in range(num_positions):
-        # First element: [-0.5:-0.2] or [0.2:0.5]
-        x = np.random.uniform(0.3, 0.5)
-        # Second element: [-0.5:-0.2] or [0.2:0.5]
-        y = np.random.uniform(-0.4, 0.5)
+        # First element: [-0.5:-0.3] or [0.3:0.5]
+        x = np.random.choice([np.random.uniform(-0.5, -0.3), np.random.uniform(0.3, 0.5)])
+        # Second element: [-0.5:-0.4] or [0.4:0.5]
+        y = np.random.choice([np.random.uniform(-0.5, -0.4), np.random.uniform(0.4, 0.5)])
         # Third element: [0.1:0.6]
         z = np.random.uniform(0.1, 0.6)
         list_of_desired_cartesian_positions.append([x, y, z])
@@ -150,7 +173,18 @@ def main():
             init_position = init_joint_angles
         else:
             init_position = list_of_initialjoint_positions[i]
-        diff_kin = CartesianDiffKin(dyn_model, controlled_frame_name, init_position, desired_cartesian_pos, np.zeros(3), desired_cartesian_ori, np.zeros(3), time_step, type_of_control, kp_pos, kp_ori, np.array(joint_vel_limits))
+        diff_kin = CartesianDiffKin(dyn_model, 
+                                    controlled_frame_name, 
+                                    init_position, 
+                                    desired_cartesian_pos, 
+                                    np.zeros(3), 
+                                    desired_cartesian_ori, 
+                                    np.zeros(3), 
+                                    time_step, 
+                                    type_of_control, 
+                                    kp_pos, 
+                                    kp_ori, 
+                                    np.array(joint_vel_limits))
         steps = int(duration_per_desired_cartesian_pos/time_step)
 
         # reinitialize the robot to the initial position
@@ -176,23 +210,7 @@ def main():
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)
             print(f"torque command from feedback lin ctrl: {tau_cmd}")
 
-            checkpoint = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth", weights_only=False)
-            model = Part_1_Model(input_size=7, hidden_size=128, output_size=7)
-            model_state_dict = checkpoint["model_state_dict"]
-            model.load_state_dict(model_state_dict)
-            model.eval()
-            q_diff_std, q_diff_mean = checkpoint["q_diff_std"], checkpoint["q_diff_mean"]
-            qd_diff_std, qd_diff_mean = checkpoint["qd_diff_std"], checkpoint["qd_diff_mean"]
-            tau_cmd_std, tau_cmd_mean = checkpoint["tau_cmd_std"], checkpoint["tau_cmd_mean"]
-            print(f"tau_cmd_std: {tau_cmd_std}, tau_cmd_mean: {tau_cmd_mean}")
-            # normalize q_mes - q_des
-            q_input = (torch.tensor(q_mes - q_des) - q_diff_mean) / (q_diff_std + 1e-8)
-            print(f"q_input: {q_input}")
-            with torch.no_grad():
-                tau_cmd = model(q_input.to(torch.float32))
-                tau_cmd = tau_cmd * (tau_cmd_std + 1e-8) + tau_cmd_mean
-            tau_cmd = np.array(tau_cmd)
-            print(f"tau_cmd from model: {tau_cmd}")
+            tau_cmd_model_predict = model_predict(q_des, q_mes)
 
             cmd.SetControlCmd(tau_cmd, ["torque"] * 7)  # Set the torque command
             sim.Step(cmd, "torque")  # Simulation step with torque command
@@ -229,6 +247,8 @@ def main():
             time.sleep(time_step)  # Control loop timing
             current_time += time_step
             #print("Current time in seconds:", current_time)
+            tau_mes = np.asarray(sim.GetMotorTorques(0),dtype=float)
+            print(f"After torque measurement: {tau_mes}\n\n")
     
         current_time = 0  # Reset current time for potential future use
 

@@ -86,6 +86,18 @@ def generate_pose(num_poses, init_joint_angles):
             list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions)
 
 
+def load_checkpoint(model: torch.nn.Module, checkpoint_path, device):
+    """
+    Load model checkpoint
+    """
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(device)
+    model.eval()
+    print(f"Loaded model checkpoint from {checkpoint_path}")
+    return model
+
+
 def collect_data(num_poses=5, save_path="q_diff.pt"):
 
     cmd = MotorCommands()  # Initialize command structure for motors
@@ -109,12 +121,8 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
     current_time = 0  # Initialize current time
     time_step = sim.GetTimeStep()
 
-    # Convergence threshold for end-effector position (meters)
-    cartesian_pos_tolerance = 0.001  # Adjust this value as needed
-
-    q_diff_all = []
-    qd_diff_all = []
-    tau_cmd_all = []
+    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7, dropout_rate=0.3)
+    model = load_checkpoint(model, "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth", device=torch.device('cuda'))
 
     for i in range(len(list_of_desired_cartesian_positions)):
         desired_cartesian_pos = np.array(list_of_desired_cartesian_positions[i])
@@ -124,7 +132,6 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
         initial_joint_positions = list_of_initialjoint_positions[i]
 
         steps = int(duration_per_desired_cartesian_pos/time_step)
-        print(f"steps: {steps}")
 
         sim.ResetPose()
         for t in range(steps):
@@ -140,38 +147,21 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
             q_des, qd_des_clip = CartesianDiffKin(dyn_model,controlled_frame_name,q_mes, desired_cartesian_pos, pd_d, desired_cartesian_ori, ori_d_des, time_step, "pos",  kp_pos, kp_ori, np.array(joint_vel_limits))
 
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, k_p, k_d)
+            print(f"feedback lin ctrl tau_cmd: {tau_cmd}")
+            
+            q_diff_input = torch.tensor(q_des - q_mes, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
+            with torch.no_grad():
+                tau_cmd_tensor = model(q_diff_input.to(torch.float32).to(torch.device('cuda')))
+            tau_cmd = tau_cmd_tensor.squeeze(0).cpu().numpy()  # Remove batch dimension
+            print(f"ML model tau_cmd: {tau_cmd}\n\n")
 
             cmd.SetControlCmd(tau_cmd, ["torque"] * 7)  # Set the torque command
             sim.Step(cmd, "torque")  # Simulation step with torque command
             current_time += time_step
 
-            cart_distance = np.linalg.norm(np.array(cart_pos) - desired_cartesian_pos)
-
-            # print(t > 50 and cart_distance > cartesian_pos_tolerance)
-
-            # Store data
-            if t > 50:  # Skip initial transient
-                q_diff = q_des - q_mes
-                qd_diff = qd_des_clip - qd_mes
-                q_diff_all.append(q_diff)
-                qd_diff_all.append(qd_diff)
-                tau_cmd_all.append(tau_cmd)
-            if cart_distance < cartesian_pos_tolerance:
-                print(f"Not collecting data at step {t}, cart_distance: {cart_distance}")
-                break
-
-    
-    # Save collected data
-    q_diff_all = torch.tensor(q_diff_all)
-    qd_diff_all = torch.tensor(qd_diff_all)
-    tau_cmd_all = torch.tensor(tau_cmd_all)
-
-    print(f"q_diff_all shape: {q_diff_all.shape}")
-    print(f"qd_diff_all shape: {qd_diff_all.shape}")
-    print(f"tau_cmd_all shape: {tau_cmd_all.shape}")
-    torch.save(q_diff_all, os.path.join(save_path, "q_diff.pt"))
-    torch.save(qd_diff_all, os.path.join(save_path, "qd_diff.pt"))
-    torch.save(tau_cmd_all, os.path.join(save_path, "tau_cmd.pt"))
+            cart_distance = sum((np.array(cart_pos) - desired_cartesian_pos)**2)**0.5
+            print(f"Step {t+1}/{steps}, Cart Pos: {cart_pos}, Desired Pos: {desired_cartesian_pos}, Distance: {cart_distance}")
 
 
-collect_data(num_poses=4, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/")
+
+collect_data(num_poses=5, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/")

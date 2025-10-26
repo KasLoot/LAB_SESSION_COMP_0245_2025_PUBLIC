@@ -21,15 +21,20 @@ import numpy as np
 
 @dataclass
 class TrainingConfig:
-    batch_size: int = 128
-    learning_rate: float = 1e-2
-    num_epochs: int = 200
+    batch_size: int = 32
+    learning_rate: float = 1e-3
+    num_epochs: int = 400
     device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 
 def train_model(config: TrainingConfig = TrainingConfig()):
 
+
+
     dataset = Part_1_Dataset(data_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/raw_data")
+
+    q_diff_std, q_diff_mean, qd_diff_std, qd_diff_mean, tau_cmd_std, tau_cmd_mean = dataset.get_std_mean()
+
     # Split train dataset into train and validation (e.g., 80-20 split)
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
@@ -38,11 +43,11 @@ def train_model(config: TrainingConfig = TrainingConfig()):
     train_dataloader = DataLoader(train_subset, batch_size=config.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_subset, batch_size=config.batch_size, shuffle=False)
 
-    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7).to(torch.float32)
+    model = Part_1_Model(input_size=7, hidden_size=128, output_size=7).to(torch.float32)
     
     model.to(config.device)
 
-    criterion = nn.SmoothL1Loss()
+    criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
     best_val_loss = float('inf')
@@ -58,8 +63,9 @@ def train_model(config: TrainingConfig = TrainingConfig()):
         epoch_train_losses = []
         for i, batch in enumerate(train_dataloader):
             q_diff, qd_diff, tau_mes = batch
-            q_diff = q_diff.to(config.device)
-            tau_mes = tau_mes.to(config.device)
+            q_diff = q_diff.to(torch.float32).to(config.device)
+            # qd_diff = qd_diff.to(torch.float32).to(config.device)
+            tau_mes = tau_mes.to(torch.float32).to(config.device)
             optimizer.zero_grad()
             logits = model(q_diff)
             loss = criterion(logits, tau_mes)
@@ -74,8 +80,8 @@ def train_model(config: TrainingConfig = TrainingConfig()):
         epoch_val_losses = []
         for i, batch in enumerate(val_dataloader):
             q_diff, qd_diff, tau_mes = batch
-            q_diff = q_diff.to(config.device)
-            tau_mes = tau_mes.to(config.device)
+            q_diff = q_diff.to(torch.float32).to(config.device)
+            tau_mes = tau_mes.to(torch.float32).to(config.device)
             with torch.no_grad():
                 logits = model(q_diff)
                 val_loss = criterion(logits, tau_mes)
@@ -99,6 +105,12 @@ def train_model(config: TrainingConfig = TrainingConfig()):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'train_loss': avg_train_loss,
                 'val_loss': avg_val_loss,
+                'q_diff_std': q_diff_std,
+                'q_diff_mean': q_diff_mean,
+                'qd_diff_std': qd_diff_std,
+                'qd_diff_mean': qd_diff_mean,
+                'tau_cmd_std': tau_cmd_std,
+                'tau_cmd_mean': tau_cmd_mean
             }
             # Create checkpoints directory if it doesn't exist
             Path(model_save_dir).mkdir(parents=True, exist_ok=True)
@@ -119,7 +131,7 @@ def plot_training_curves(epochs, train_losses, val_losses, save_dir):
     plt.plot(epochs, train_losses, label='Training Loss', linewidth=2, markersize=6)
     plt.plot(epochs, val_losses, label='Validation Loss', linewidth=2, markersize=6)
     plt.xlabel('Epoch', fontsize=12)
-    plt.ylabel('Loss (SmoothL1)', fontsize=12)
+    plt.ylabel('Loss', fontsize=12)
     plt.title('Training and Validation Loss Over Epochs', fontsize=14, fontweight='bold')
     plt.legend(fontsize=10)
     plt.grid(True, alpha=0.3)

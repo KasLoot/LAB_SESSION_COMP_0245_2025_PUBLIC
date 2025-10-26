@@ -19,18 +19,14 @@ class Part_1_Model(nn.Module):
         super(Part_1_Model, self).__init__()
         self.rms1 = nn.RMSNorm(input_size)
         self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, 128)
-        self.fc3 = nn.Linear(128, 128)
-        self.fc4 = nn.Linear(128, 64)
-        self.fc5 = nn.Linear(64, output_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         x = self.rms1(x)
         x = F.silu(self.fc1(x))
         x = F.silu(self.fc2(x))
-        x = F.silu(self.fc3(x))
-        x = F.silu(self.fc4(x))
-        x = self.fc5(x)
+        x = self.fc3(x)
         return x
 
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 @dataclass
 class ModelConfig:
     input_size: int = 7
-    hidden_size: int = 64
+    hidden_size: int = 128
     output_size: int = 7
     num_heads: int = 4
     num_layers: int = 2

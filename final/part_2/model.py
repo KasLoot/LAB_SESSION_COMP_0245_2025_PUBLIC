@@ -4,19 +4,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 from dataclasses import dataclass
 
-@dataclass
-class ModelConfig:
-    input_size: int = 7
-    hidden_size: int = 128
-    output_size: int = 7
-    num_heads: int = 4
-    num_layers: int = 2
 
 
 
-class Part_1_Model(nn.Module):
+class Part_2_Model(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, dropout_rate=0.3):
-        super(Part_1_Model, self).__init__()
+        super(Part_2_Model, self).__init__()
         self.rms = nn.RMSNorm(input_size)
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.dropout1 = nn.Dropout(dropout_rate)
@@ -35,8 +28,3 @@ class Part_1_Model(nn.Module):
         x = self.rms3(x)
         x = self.fc3(x)
         return x
-
-
-
-    
-

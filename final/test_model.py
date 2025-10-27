@@ -10,12 +10,12 @@ import sys
 
 import torch
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from final.part_1.model import Part_1_Model
-from final.rollout_loader import load_rollouts
+from part_2.model import Part_2_Model
+from rollout_loader import load_rollouts
 
 from pathlib import Path
 
-
+np.random.seed(42)
 
 
 def initialize_simulation():
@@ -23,7 +23,7 @@ def initialize_simulation():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Configuration for the simulation
-    sim = pb.SimInterface(conf_file_name, conf_file_path_ext = root_dir)  # Initialize simulation interface
+    sim = pb.SimInterface(conf_file_name, conf_file_path_ext=root_dir)  # Initialize simulation interface
 
     # Get active joint names from the simulation
     ext_names = sim.getNameActiveJoints()
@@ -98,6 +98,108 @@ def load_checkpoint(model: torch.nn.Module, checkpoint_path, device):
     return model
 
 
+def plot_comparison(q_des_diffkin, qd_des_diffkin, q_des_model, qd_des_model, timestamps):
+    """
+    Plot comparison between CartesianDiffKin and Neural Network predictions
+    """
+    q_des_diffkin = np.array(q_des_diffkin)
+    qd_des_diffkin = np.array(qd_des_diffkin)
+    q_des_model = np.array(q_des_model)
+    qd_des_model = np.array(qd_des_model)
+    timestamps = np.array(timestamps)
+    
+    num_joints = q_des_diffkin.shape[1]
+    
+    # Plot q_des comparison
+    fig1, axes1 = plt.subplots(num_joints, 1, figsize=(12, 2*num_joints))
+    fig1.suptitle('Joint Position Desired (q_des): CartesianDiffKin vs Neural Network', fontsize=14, fontweight='bold')
+    
+    for i in range(num_joints):
+        axes1[i].plot(timestamps, q_des_diffkin[:, i], label='CartesianDiffKin', linewidth=2, alpha=0.7)
+        axes1[i].plot(timestamps, q_des_model[:, i], label='Neural Network', linewidth=2, alpha=0.7, linestyle='--')
+        axes1[i].set_ylabel(f'Joint {i+1} (rad)', fontsize=10)
+        axes1[i].legend(loc='best')
+        axes1[i].grid(True, alpha=0.3)
+    
+    axes1[-1].set_xlabel('Time (s)', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('q_des_comparison.png', dpi=300, bbox_inches='tight')
+    print("Saved plot: q_des_comparison.png")
+    
+    # Plot qd_des comparison
+    fig2, axes2 = plt.subplots(num_joints, 1, figsize=(12, 2*num_joints))
+    fig2.suptitle('Joint Velocity Desired (qd_des): CartesianDiffKin vs Neural Network', fontsize=14, fontweight='bold')
+    
+    for i in range(num_joints):
+        axes2[i].plot(timestamps, qd_des_diffkin[:, i], label='CartesianDiffKin', linewidth=2, alpha=0.7)
+        axes2[i].plot(timestamps, qd_des_model[:, i], label='Neural Network', linewidth=2, alpha=0.7, linestyle='--')
+        axes2[i].set_ylabel(f'Joint {i+1} (rad/s)', fontsize=10)
+        axes2[i].legend(loc='best')
+        axes2[i].grid(True, alpha=0.3)
+    
+    axes2[-1].set_xlabel('Time (s)', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('qd_des_comparison.png', dpi=300, bbox_inches='tight')
+    print("Saved plot: qd_des_comparison.png")
+    
+    # Plot difference/error
+    q_diff = np.abs(q_des_diffkin - q_des_model)
+    qd_diff = np.abs(qd_des_diffkin - qd_des_model)
+    
+    fig3, axes3 = plt.subplots(2, 1, figsize=(12, 8))
+    fig3.suptitle('Absolute Difference between CartesianDiffKin and Neural Network', fontsize=14, fontweight='bold')
+    
+    for i in range(num_joints):
+        axes3[0].plot(timestamps, q_diff[:, i], label=f'Joint {i+1}', linewidth=1.5, alpha=0.7)
+    axes3[0].set_ylabel('|q_des difference| (rad)', fontsize=12)
+    axes3[0].legend(loc='best', ncol=2)
+    axes3[0].grid(True, alpha=0.3)
+    
+    for i in range(num_joints):
+        axes3[1].plot(timestamps, qd_diff[:, i], label=f'Joint {i+1}', linewidth=1.5, alpha=0.7)
+    axes3[1].set_ylabel('|qd_des difference| (rad/s)', fontsize=12)
+    axes3[1].set_xlabel('Time (s)', fontsize=12)
+    axes3[1].legend(loc='best', ncol=2)
+    axes3[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('q_qd_difference.png', dpi=300, bbox_inches='tight')
+    print("Saved plot: q_qd_difference.png")
+    
+    plt.show()
+
+
+def plot_cart_distance(cart_distances, timestamps):
+    """
+    Plot Cartesian distance to target over time
+    """
+    cart_distances = np.array(cart_distances)
+    timestamps = np.array(timestamps)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(timestamps, cart_distances, linewidth=2, color='navy', alpha=0.8)
+    ax.set_xlabel('Time (s)', fontsize=12)
+    ax.set_ylabel('Cartesian Distance to Target (m)', fontsize=12)
+    ax.set_title('Cartesian Distance to Target Over Time', fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.3)
+    
+    # Add statistics
+    mean_dist = np.mean(cart_distances)
+    final_dist = cart_distances[-1]
+    ax.axhline(y=mean_dist, color='r', linestyle='--', linewidth=1.5, alpha=0.7, label=f'Mean: {mean_dist:.4f} m')
+    ax.text(0.02, 0.98, f'Final distance: {final_dist:.4f} m', 
+            transform=ax.transAxes, fontsize=10, verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    ax.legend(loc='best')
+    
+    plt.tight_layout()
+    plt.savefig('cart_distance_over_time.png', dpi=300, bbox_inches='tight')
+    print("Saved plot: cart_distance_over_time.png")
+    
+    plt.show()
+
+
+
 def collect_data(num_poses=5, save_path="q_diff.pt"):
 
     cmd = MotorCommands()  # Initialize command structure for motors
@@ -121,8 +223,16 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
     current_time = 0  # Initialize current time
     time_step = sim.GetTimeStep()
 
-    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7, dropout_rate=0.3)
-    model = load_checkpoint(model, "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth", device=torch.device('cuda'))
+    model = Part_2_Model(input_size=6, hidden_size=64, output_size=14)
+    model = load_checkpoint(model, "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints/best_part_2_model.pth", device=torch.device('cuda'))
+
+    # Data collection for plotting
+    all_q_des_diffkin = []
+    all_qd_des_diffkin = []
+    all_q_des_model = []
+    all_qd_des_model = []
+    all_cart_distances = []
+    all_timestamps = []
 
     for i in range(len(list_of_desired_cartesian_positions)):
         desired_cartesian_pos = np.array(list_of_desired_cartesian_positions[i])
@@ -144,23 +254,49 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
             pd_d = [0.0, 0.0, 0.0]  # Desired linear velocity
             ori_d_des = [0.0, 0.0, 0.0]  # Desired angular velocity
 
-            q_des, qd_des_clip = CartesianDiffKin(dyn_model,controlled_frame_name,q_mes, desired_cartesian_pos, pd_d, desired_cartesian_ori, ori_d_des, time_step, "pos",  kp_pos, kp_ori, np.array(joint_vel_limits))
+            # print("\n\n"+"="*20)
+
+            q_des_diffkin, qd_des_clip_diffkin = CartesianDiffKin(dyn_model,controlled_frame_name,q_mes, desired_cartesian_pos, pd_d, desired_cartesian_ori, ori_d_des, time_step, "pos",  kp_pos, kp_ori, np.array(joint_vel_limits))
+            # print(f"q_des from diff kin: \n{q_des_diffkin}")
+            # print(f"qd_des_clip from diff kin: \n{qd_des_clip_diffkin}")
+
+            prediction = model(torch.tensor(np.concatenate((cart_pos, desired_cartesian_pos)), dtype=torch.float32).to(torch.device('cuda')))
+
+            q_des_model = prediction[:7].detach().cpu().numpy()
+            qd_des_clip_model = prediction[7:].detach().cpu().numpy()
+            # print(f"q_des from model: \n{q_des_model}")
+            # print(f"qd_des_clip from model: \n{qd_des_clip_model}")
+            
+            # Use model predictions for control
+            q_des = q_des_model
+            qd_des_clip = qd_des_clip_model
 
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, k_p, k_d)
-            print(f"feedback lin ctrl tau_cmd: {tau_cmd}")
+            # print(f"feedback lin ctrl tau_cmd: {tau_cmd}")
             
-            q_diff_input = torch.tensor(q_des - q_mes, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
-            with torch.no_grad():
-                tau_cmd_tensor = model(q_diff_input.to(torch.float32).to(torch.device('cuda')))
-            tau_cmd = tau_cmd_tensor.squeeze(0).cpu().numpy()  # Remove batch dimension
-            print(f"ML model tau_cmd: {tau_cmd}\n\n")
 
             cmd.SetControlCmd(tau_cmd, ["torque"] * 7)  # Set the torque command
             sim.Step(cmd, "torque")  # Simulation step with torque command
             current_time += time_step
 
-            cart_distance = sum((np.array(cart_pos) - desired_cartesian_pos)**2)**0.5
-            print(f"Step {t+1}/{steps}, Cart Pos: {cart_pos}, Desired Pos: {desired_cartesian_pos}, Distance: {cart_distance}")
+            # cart_distance = sum((np.array(cart_pos) - desired_cartesian_pos)**2)**0.5
+            
+    #         # Collect data for plotting
+    #         all_q_des_diffkin.append(q_des_diffkin.copy())
+    #         all_qd_des_diffkin.append(qd_des_clip_diffkin.copy())
+    #         all_q_des_model.append(q_des_model.copy())
+    #         all_qd_des_model.append(qd_des_clip_model.copy())
+    #         all_cart_distances.append(cart_distance)
+    #         all_timestamps.append(current_time)
+
+            # cart_distance = np.linalg.norm(np.array(cart_pos) - desired_cartesian_pos)
+            # if cart_distance < 0.001:
+            #     print(f"Not collecting data at step {t}, cart_distance: {cart_distance}")
+            #     break
+    
+    # # Create plots
+    # plot_comparison(all_q_des_diffkin, all_qd_des_diffkin, all_q_des_model, all_qd_des_model, all_timestamps)
+    # plot_cart_distance(all_cart_distances, all_timestamps)
 
 
 

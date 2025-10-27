@@ -7,9 +7,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 
 
-from process_data import Part_1_Dataset
+from get_dataset import Part_2_Dataset
 from dataclasses import dataclass
-from model import Part_1_Model
+from model import Part_2_Model
 
 from tqdm import tqdm
 
@@ -22,7 +22,7 @@ import numpy as np
 @dataclass
 class TrainingConfig:
     batch_size: int = 32
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-4
     num_epochs: int = 200
     device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -31,7 +31,7 @@ def train_model(config: TrainingConfig = TrainingConfig()):
 
 
 
-    train_dataset = Part_1_Dataset(data_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/train")
+    train_dataset = Part_2_Dataset(data_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/train")
 
     # Split dataset into training and validation sets
     val_size = int(0.2 * len(train_dataset))
@@ -44,7 +44,7 @@ def train_model(config: TrainingConfig = TrainingConfig()):
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=True)
 
-    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7).to(torch.float32)
+    model = Part_2_Model(input_size=6, hidden_size=64, output_size=14).to(torch.float32)
     
     model.to(config.device)
 
@@ -52,7 +52,7 @@ def train_model(config: TrainingConfig = TrainingConfig()):
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
     best_val_loss = float('inf')
-    model_save_dir = "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints"
+    model_save_dir = "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints"
     
     # Lists to store losses for plotting
     train_losses = []
@@ -63,15 +63,14 @@ def train_model(config: TrainingConfig = TrainingConfig()):
         model.train()
         epoch_train_losses = []
         for i, batch in enumerate(train_dataloader):
-            q_diff, tau_cmd = batch
-            # print(f"q_diff: \n{q_diff}")
-            # print(f"tau_cmd: \n{tau_cmd}")
-            q_diff = q_diff.to(torch.float32).to(config.device)
-            # qd_diff = qd_diff.to(torch.float32).to(config.device)
-            tau_cmd = tau_cmd.to(torch.float32).to(config.device)
+            cart_pos, cart_des_pos, q_des, qd_des_clip = batch
+            input_tensor = torch.cat((cart_pos, cart_des_pos), dim=1)
+            target_tensor = torch.cat((q_des, qd_des_clip), dim=1)
+            input_tensor = input_tensor.to(torch.float32).to(config.device)
+            target_tensor = target_tensor.to(torch.float32).to(config.device)
             optimizer.zero_grad()
-            logits = model(q_diff)
-            loss = criterion(logits, tau_cmd)
+            logits = model(input_tensor)
+            loss = criterion(logits, target_tensor)
             loss.backward()
             optimizer.step()
             epoch_train_losses.append(loss.item())
@@ -82,13 +81,15 @@ def train_model(config: TrainingConfig = TrainingConfig()):
         model.eval()
         epoch_val_losses = []
         for i, batch in enumerate(val_dataloader):
-            q_diff, tau_cmd = batch
-            q_diff = q_diff.to(torch.float32).to(config.device)
-            tau_cmd = tau_cmd.to(torch.float32).to(config.device)
+            cart_pos, cart_des_pos, q_des, qd_des_clip = batch
+            input_tensor = torch.cat((cart_pos, cart_des_pos), dim=1)
+            target_tensor = torch.cat((q_des, qd_des_clip), dim=1)
+            input_tensor = input_tensor.to(torch.float32).to(config.device)
+            target_tensor = target_tensor.to(torch.float32).to(config.device)
             with torch.no_grad():
-                logits = model(q_diff)
-                val_loss = criterion(logits, tau_cmd)
-                epoch_val_losses.append(val_loss.item())
+                logits = model(input_tensor)
+                loss = criterion(logits, target_tensor)
+                epoch_val_losses.append(loss.item())
         
         # Calculate average validation loss for the epoch
         avg_val_loss = np.mean(epoch_val_losses)
@@ -111,7 +112,7 @@ def train_model(config: TrainingConfig = TrainingConfig()):
             }
             # Create checkpoints directory if it doesn't exist
             Path(model_save_dir).mkdir(parents=True, exist_ok=True)
-            torch.save(model_state, f"{model_save_dir}/best_part_1_model.pth")
+            torch.save(model_state, f"{model_save_dir}/best_part_2_model.pth")
             print(f"Saved Best Model with Val Loss: {best_val_loss:.4f}")
 
     # Plot training and validation losses
@@ -121,18 +122,23 @@ def train_model(config: TrainingConfig = TrainingConfig()):
 
 
 def plot_predictions_vs_true():
-    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7).to(torch.float32)
-    model.load_state_dict(torch.load(f"/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth", weights_only=False)['model_state_dict'])
+    model = Part_2_Model(input_size=6, hidden_size=64, output_size=14).to(torch.float32)
+    model.load_state_dict(torch.load(f"/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints/best_part_2_model.pth", weights_only=False)['model_state_dict'])
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     model.to(device).eval()
-    val_q_diff = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/q_diff.pt").to(torch.float32).to(device)
-    val_tau_cmd = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/tau_cmd.pt").to(torch.float32).to(device)
+    val_car_pos = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/cart_pos.pt").to(torch.float32).to(device)
+    val_car_des_pos = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/cart_des_pos.pt").to(torch.float32).to(device)
+    val_input = torch.cat((val_car_pos, val_car_des_pos), dim=1).to(device)
+    val_qd_des_clip = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/qd_des_clip.pt").to(torch.float32).to(device)
+    val_q_des = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/q_des.pt").to(torch.float32).to(device)
+    val_target = torch.cat((val_q_des, val_qd_des_clip), dim=1).to(device)
+    
 
     with torch.no_grad():
-        predictions = model(val_q_diff)
+        predictions = model(val_input)
 
     predictions_np = predictions.cpu().numpy()
-    true_values_np = val_tau_cmd.cpu().numpy()
+    true_values_np = val_target.cpu().numpy()
 
     # Plot for each dimension
     num_dimensions = predictions_np.shape[1]
@@ -180,4 +186,4 @@ def plot_training_curves(epochs, train_losses, val_losses, save_dir):
 
 if __name__ == "__main__":
     train_model()
-    plot_predictions_vs_true()
+    # plot_predictions_vs_true()

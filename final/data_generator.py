@@ -9,7 +9,9 @@ import pickle
 import sys
 
 import torch
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from final.part_2.model import Part_2_Model
 from final.part_1.model import Part_1_Model
 from final.rollout_loader import load_rollouts
 
@@ -24,7 +26,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)  # create if it doesn't exist
 
 
 PRINT_PLOTS = True  # Set to True to enable plotting
-RECORDING = False  # Set to True to enable data recording
+RECORDING = True  # Set to True to enable data recording
 
 # downsample rate needs to be bigger than one (is how much I steps I skip when i downsample the data)
 downsample_rate = 2
@@ -42,25 +44,18 @@ def get_downsample_rate():
         return None
 
 
-def model_predict(q_des, q_mes):
-    checkpoint = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth", weights_only=False)
-    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7)
+def model_predict(q_des, q_mes, qd_des, qd_mes):
+    input_tensor = torch.tensor(np.concatenate((q_des - q_mes, qd_des - qd_mes), axis=0)).to(torch.float32)
+    checkpoint = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints/best_part_2_model.pth", weights_only=False)
+    model = Part_2_Model(input_size=14, hidden_size=64, output_size=7)
     model_state_dict = checkpoint["model_state_dict"]
     model.load_state_dict(model_state_dict)
     model.eval()
-    q_diff_std, q_diff_mean = checkpoint["q_diff_std"], checkpoint["q_diff_mean"]
-    qd_diff_std, qd_diff_mean = checkpoint["qd_diff_std"], checkpoint["qd_diff_mean"]
-    tau_cmd_std, tau_cmd_mean = checkpoint["tau_cmd_std"], checkpoint["tau_cmd_mean"]
-    # print(f"tau_cmd_std: {tau_cmd_std}, tau_cmd_mean: {tau_cmd_mean}")
-    # normalize q_des - q_mes
-    q_input = (torch.tensor(q_des - q_mes) - q_diff_mean) / (q_diff_std + 1e-8)
-    # print(f"q_input: {q_input}")
     with torch.no_grad():
-        tau_cmd = model(q_input.to(torch.float32))
+        tau_cmd = model(input_tensor)
         print(f"Raw tau_cmd from model: \n{tau_cmd}")
-        tau_cmd = tau_cmd * (tau_cmd_std + 1e-8) + tau_cmd_mean
     tau_cmd = np.array(tau_cmd)
-    print(f"Denormalized tau_cmd from model: \n{tau_cmd}")
+
 
     return tau_cmd
 
@@ -208,11 +203,13 @@ def main():
             
             # Control command
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)
-            print(f"torque command from feedback lin ctrl: {tau_cmd}")
+            print(f"PD control torque command from feedback lin ctrl: {tau_cmd}")
+            p_tau = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, 0)
+            print(f"Proportional torque command from feedback lin ctrl: {p_tau}")
+            tau_cmd_model_predict = model_predict(q_des=q_des, q_mes=q_mes, qd_des=qd_des_clip, qd_mes=qd_mes)
+            print(f"Torque command from model prediction: {tau_cmd_model_predict}")
 
-            tau_cmd_model_predict = model_predict(q_des, q_mes)
-
-            cmd.SetControlCmd(tau_cmd, ["torque"] * 7)  # Set the torque command
+            cmd.SetControlCmd(tau_cmd_model_predict, ["torque"] * 7)  # Set the torque command
             sim.Step(cmd, "torque")  # Simulation step with torque command
 
 
@@ -285,42 +282,45 @@ def main():
             print(f"Data saved to {filename}")
 
             # Reinitialize data storage lists
-        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
+            q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
 
-        if PRINT_PLOTS:
-            print("Plotting downsampled data...")
-            # Plot joint positions for each joint
-            num_joints = len(q_mes_all_downsampled[0])
-            fig, axs = plt.subplots(num_joints, 1, figsize=(12, 2 * num_joints), sharex=True)
-            fig.suptitle('Desired vs. Measured Joint Angles', fontsize=16)
+            if PRINT_PLOTS:
+                print("Plotting downsampled data...")
+                # Plot joint positions for each joint
+                num_joints = len(q_mes_all_downsampled[0])
+                fig, axs = plt.subplots(num_joints, 1, figsize=(12, 2 * num_joints), sharex=True)
+                fig.suptitle('Desired vs. Measured Joint Angles', fontsize=16)
 
-            for joint_idx in range(num_joints):
-                measured_positions = [q[joint_idx] for q in q_mes_all_downsampled]
-                desired_positions = [q[joint_idx] for q in q_d_all_downsampled]
-                
-                axs[joint_idx].plot(time_array, measured_positions, label=f'Measured Joint {joint_idx+1}')
-                axs[joint_idx].plot(time_array, desired_positions, label=f'Desired Joint {joint_idx+1}', linestyle='--')
-                axs[joint_idx].set_ylabel('Angle (rad)')
-                axs[joint_idx].set_title(f'Joint {joint_idx+1}')
-                axs[joint_idx].legend()
-                axs[joint_idx].grid(True)
+                for joint_idx in range(num_joints):
+                    measured_positions = [q[joint_idx] for q in q_mes_all_downsampled]
+                    desired_positions = [q[joint_idx] for q in q_d_all_downsampled]
+                    
+                    axs[joint_idx].plot(time_array, measured_positions, label=f'Measured Joint {joint_idx+1}')
+                    axs[joint_idx].plot(time_array, desired_positions, label=f'Desired Joint {joint_idx+1}', linestyle='--')
+                    axs[joint_idx].set_ylabel('Angle (rad)')
+                    axs[joint_idx].set_title(f'Joint {joint_idx+1}')
+                    axs[joint_idx].legend()
+                    axs[joint_idx].grid(True)
 
-            plt.xlabel('Time (s)')
-            plt.tight_layout(rect=[0, 0.03, 1, 0.96])
-            plt.show()
+                plt.xlabel('Time (s)')
+                plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+                plt.show()
 
 
-            # Plot joint velocities
-            plt.figure(figsize=(12, 6))
-            for joint_idx in range(len(qd_mes_all_downsampled[0])):
-                joint_velocities = [qd[joint_idx] for qd in qd_mes_all_downsampled]
-                plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Joint Velocities (rad/s)')
-            plt.title('Downsampled Joint Velocities')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
+                # Plot joint velocities
+                plt.figure(figsize=(12, 6))
+                for joint_idx in range(len(qd_mes_all_downsampled[0])):
+                    joint_velocities = [qd[joint_idx] for qd in qd_mes_all_downsampled]
+                    plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
+                plt.xlabel('Time (s)')
+                plt.ylabel('Joint Velocities (rad/s)')
+                plt.title('Downsampled Joint Velocities')
+                plt.legend()
+                plt.grid(True)
+                plt.show()
+        else:
+            # Reinitialize data storage lists
+            q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
     
     
     

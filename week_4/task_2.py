@@ -17,8 +17,8 @@ torch.manual_seed(32)
 
 @dataclass
 class Config:
-    batch_size: int = 32
-    learning_rate: float = 0.01
+    batch_size: int = 16
+    learning_rate: float = 0.005
     epochs: int = 20
 
 
@@ -77,19 +77,14 @@ class MLP(nn.Module):
         self.model = nn.Sequential(
             nn.Flatten(),
             nn.Linear(28*28, 28),
-            nn.RMSNorm(28, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(28, 16),
-            nn.RMSNorm(16, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(16, 16),
-            nn.RMSNorm(16, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(16, 16),
-            nn.RMSNorm(16, eps=1e-6),
-            nn.SiLU(),
+            nn.ReLU(),
             nn.Linear(16, 10),
-            nn.RMSNorm(10, eps=1e-6),
             nn.LogSoftmax(dim=1)  # Use LogSoftmax for numerical stability
         )
 
@@ -99,6 +94,7 @@ class MLP(nn.Module):
 
 
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+print(f'Using device: {device}')
 model = MLP().to(device)
 torch.compile(model)
 
@@ -151,7 +147,7 @@ for epoch in range(epochs):
     if test_loss < best_test_loss:
         best_test_loss = test_loss
         best_test_accuracy = test_accuracy
-        model_save_path = './checkpoints/task_1.pth'
+        model_save_path = f'./checkpoints/task_2_bs{config.batch_size}_lr{config.learning_rate}.pth'
         model_dict = {
             'epoch': epoch + 1,
             'model_state_dict': model.state_dict(),

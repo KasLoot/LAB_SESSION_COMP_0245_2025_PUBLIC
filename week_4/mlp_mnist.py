@@ -76,7 +76,7 @@ criterion = nn.NLLLoss()  # Negative Log Likelihood Loss (used with LogSoftmax)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 # 4. Model Training
-epochs = 30
+epochs = 40
 train_losses = []
 test_losses = []
 best_test_loss = float('inf')

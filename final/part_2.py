@@ -52,9 +52,9 @@ class P2_dataset(Dataset):
         return self.q_mes_all[idx], self.desired_cartesian_pos_all[idx], self.q_des_all[idx], self.qd_des_all[idx]
 
 
-class P1_MLP(nn.Module):
+class P2_MLP(nn.Module):
     def __init__(self, input_size=10, output_size=14):
-        super(P1_MLP, self).__init__()
+        super(P2_MLP, self).__init__()
         self.mlp = nn.Sequential(
             nn.Linear(input_size, 128),
             nn.LeakyReLU(),
@@ -100,14 +100,14 @@ def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    dataset = P1_dataset(data_dir='./data/')
+    dataset = P2_dataset(data_dir='./data/')
 
     train_data, val_data = torch.utils.data.random_split(dataset, [int(0.8*len(dataset)), len(dataset) - int(0.8*len(dataset))])
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
 
     loss_fn = nn.MSELoss()
-    model = P1_MLP(input_size=10, output_size=14)
+    model = P2_MLP(input_size=10, output_size=14)
     model.to(torch.float64).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 

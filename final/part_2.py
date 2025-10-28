@@ -8,9 +8,9 @@ import pickle
 import matplotlib.pyplot as plt
 
 
-class P1_dataset(Dataset):
+class P2_dataset(Dataset):
     def __init__(self, data_dir):
-        print("Initializing P1_dataset...")
+        print("Initializing P2_dataset...")
         self.q_mes_all = []
         self.desired_cartesian_pos_all = []
         self.q_des_all = []

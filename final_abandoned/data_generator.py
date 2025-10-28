@@ -8,11 +8,9 @@ import pickle
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from rollout_loader import load_rollouts
+from final.rollout_loader import load_rollouts
 
 from pathlib import Path
-
-np.random.seed(42)
 
 FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
 FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
@@ -35,25 +33,6 @@ def get_downsample_rate():
     except ValueError:
         print("Please enter a valid integer.")
         return None
-
-def generate_data(num_poses=10, init_joint_angles=None):
-    list_of_desired_cartesian_positions = []
-    list_of_desired_cartesian_orientations = []
-    list_of_type_of_control = [] # "pos",  "ori" or "both"
-    list_of_duration_per_desired_cartesian_positions = []
-    list_of_initialjoint_positions = []  # if None, use default initial joint angles
-    for _ in range(num_poses):
-        x = np.random.choice([np.random.uniform(0.3, 0.5), np.random.uniform(-0.5, -0.3)])
-        y = np.random.choice([np.random.uniform(0.4, 0.5), np.random.uniform(-0.5, -0.4)])
-        # Third element: [0.1:0.6]
-        z = np.random.uniform(0.1, 0.6)
-        list_of_desired_cartesian_positions.append([x, y, z])
-        list_of_desired_cartesian_orientations.append([0.0, 0.0, 0.0, 1.0])
-        list_of_type_of_control.append("pos")  # "pos",  "ori" or "both"
-        list_of_duration_per_desired_cartesian_positions.append(3.0)  # in seconds
-        list_of_initialjoint_positions.append(init_joint_angles)  # use default initial joint angles
-
-    return list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions
 
 
 def main():
@@ -109,25 +88,22 @@ def main():
     kp = 1000
     kd = 100
 
-    # # desired cartesian position
-    # list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
-    #                                        [0.4,0.2,0.1], 
-    #                                        [0.4,-0.2,0.1], 
-    #                                        [0.5,0.0,0.1]]
-    # # desired cartesian orientation in quaternion (XYZW)
-    # list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
-    #                                           [0.0, 0.0, 0.0, 1.0],
-    #                                           [0.0, 0.0, 0.0, 1.0],
-    #                                           [0.0, 0.0, 0.0, 1.0]]
-    # list_of_type_of_control = ["pos", "pos", "pos", "pos"] # "pos",  "ori" or "both"
-    # list_of_duration_per_desired_cartesian_positions = [3.0, 3.0, 3.0, 3.0] # in seconds
-    # list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
-
-    list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions = generate_data(num_poses=10, init_joint_angles=init_joint_angles)
+    # desired cartesian position
+    list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
+                                           [0.4,0.2,0.1], 
+                                           [0.4,-0.2,0.1], 
+                                           [0.5,0.0,0.1]]
+    # desired cartesian orientation in quaternion (XYZW)
+    list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0]]
+    list_of_type_of_control = ["pos", "pos", "pos", "pos"] # "pos",  "ori" or "both"
+    list_of_duration_per_desired_cartesian_positions = [5.0, 5.0, 5.0, 5.0] # in seconds
+    list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
 
     # Initialize data storage
-    q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
-    desired_cartesian_pos_all = []
+    q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
 
     current_time = 0  # Initialize current time
     time_step = sim.GetTimeStep()
@@ -179,15 +155,6 @@ def main():
                 print("Exiting simulation.")
                 break
 
-            cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
-            print(f"Pose No.{i}, desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
-            print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
-
-            if cart_distance_error < 0.01:
-                print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
-                # Optionally, you can break here if you want to stop when the position is reached
-                # break
-
             
             # Conditional data recording
             if RECORDING:
@@ -198,7 +165,7 @@ def main():
                 tau_mes_all.append(tau_mes)
                 cart_pos_all.append(cart_pos)
                 cart_ori_all.append(cart_ori)
-                desired_cartesian_pos_all.append(desired_cartesian_pos)
+                tau_cmd_all.append(tau_cmd)
 
             # Time management
             time.sleep(time_step)  # Control loop timing
@@ -219,7 +186,16 @@ def main():
             tau_mes_all_downsampled = tau_mes_all[::downsample_rate]
             cart_pos_all_downsampled = cart_pos_all[::downsample_rate]
             cart_ori_all_downsampled = cart_ori_all[::downsample_rate]
-            desired_cartesian_pos_all_downsampled = desired_cartesian_pos_all[::downsample_rate]
+            tau_cmd_all_downsampled = tau_cmd_all[::downsample_rate]
+
+            print(f"q_mes_all_downsampled shape: {np.array(q_mes_all_downsampled).shape}")
+            print(f"qd_mes_all_downsampled shape: {np.array(qd_mes_all_downsampled).shape}")
+            print(f"q_d_all_downsampled shape: {np.array(q_d_all_downsampled).shape}")
+            print(f"qd_d_all_downsampled shape: {np.array(qd_d_all_downsampled).shape}")
+            print(f"tau_mes_all_downsampled shape: {np.array(tau_mes_all_downsampled).shape}")
+            print(f"cart_pos_all_downsampled shape: {np.array(cart_pos_all_downsampled).shape}")
+            print(f"cart_ori_all_downsampled shape: {np.array(cart_ori_all_downsampled).shape}")
+            print(f"tau_cmd_all_downsampled shape: {np.array(tau_cmd_all_downsampled).shape}")
 
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
@@ -230,17 +206,17 @@ def main():
                     'time': time_array,
                     'q_mes_all': q_mes_all_downsampled,
                     'qd_mes_all': qd_mes_all_downsampled,
-                    'q_d_all': q_d_all_downsampled,
-                    'qd_d_all': qd_d_all_downsampled,
                     'tau_mes_all': tau_mes_all_downsampled,
                     'cart_pos_all': cart_pos_all_downsampled,
                     'cart_ori_all': cart_ori_all_downsampled,
-                    'desired_cartesian_pos_all': desired_cartesian_pos_all_downsampled
+                    'q_d_all': q_d_all_downsampled,
+                    'qd_d_all': qd_d_all_downsampled,
+                    'tau_cmd_all': tau_cmd_all_downsampled
                 }, f)
             print(f"Data saved to {filename}")
 
             # Reinitialize data storage lists
-        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, desired_cartesian_pos_all = [], [], [], [], [], [], [], []
+        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
 
         if PRINT_PLOTS:
             print("Plotting downsampled data...")

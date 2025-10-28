@@ -21,9 +21,9 @@ import numpy as np
 
 @dataclass
 class TrainingConfig:
-    batch_size: int = 32
-    learning_rate: float = 1e-4
-    num_epochs: int = 200
+    batch_size: int = 64
+    learning_rate: float = 1e-2
+    num_epochs: int = 50
     device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 
@@ -33,41 +33,45 @@ def train_model(config: TrainingConfig = TrainingConfig()):
 
     train_dataset = Part_2_Dataset(data_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/train")
 
-    # Split dataset into training and validation sets
-    val_size = int(0.2 * len(train_dataset))
-    train_size = len(train_dataset) - val_size
-    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+    # # Split dataset into training and validation sets
+    # val_size = int(0.2 * len(train_dataset))
+    # train_size = len(train_dataset) - val_size
+    # train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+
+    test_dataset = Part_2_Dataset(data_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test")    
 
     # val_dataset = Part_1_Dataset(data_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val")
 
 
-    train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
-    model = Part_2_Model(input_size=6, hidden_size=64, output_size=14).to(torch.float32)
+    model = Part_2_Model(input_size=10, output_size=14).to(torch.float64)
     
     model.to(config.device)
 
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    best_val_loss = float('inf')
+    best_test_loss = float('inf')
     model_save_dir = "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints"
     
     # Lists to store losses for plotting
     train_losses = []
-    val_losses = []
+    test_losses = []
     epochs_list = []
 
     for epoch in range(config.num_epochs):
         model.train()
         epoch_train_losses = []
         for i, batch in enumerate(train_dataloader):
-            cart_pos, cart_des_pos, q_des, qd_des_clip = batch
-            input_tensor = torch.cat((cart_pos, cart_des_pos), dim=1)
+            q_mes, cart_des_pos, q_des, qd_des_clip = batch
+            input_tensor = torch.cat((q_mes, cart_des_pos), dim=1)
             target_tensor = torch.cat((q_des, qd_des_clip), dim=1)
-            input_tensor = input_tensor.to(torch.float32).to(config.device)
-            target_tensor = target_tensor.to(torch.float32).to(config.device)
+            # print(f"Input tensor shape: {input_tensor.shape}, \nTarget tensor shape: {target_tensor.shape}")
+            # print(f"Input tensor sample: {input_tensor[0]}, \nTarget tensor sample: {target_tensor[0]}")
+            input_tensor = input_tensor.to(config.device)
+            target_tensor = target_tensor.to(config.device)
             optimizer.zero_grad()
             logits = model(input_tensor)
             loss = criterion(logits, target_tensor)
@@ -79,60 +83,61 @@ def train_model(config: TrainingConfig = TrainingConfig()):
         avg_train_loss = np.mean(epoch_train_losses)
         
         model.eval()
-        epoch_val_losses = []
-        for i, batch in enumerate(val_dataloader):
-            cart_pos, cart_des_pos, q_des, qd_des_clip = batch
-            input_tensor = torch.cat((cart_pos, cart_des_pos), dim=1)
+        epoch_test_losses = []
+        for i, batch in enumerate(test_dataloader):
+            q_mes, cart_des_pos, q_des, qd_des_clip = batch
+            input_tensor = torch.cat((q_mes, cart_des_pos), dim=1)
             target_tensor = torch.cat((q_des, qd_des_clip), dim=1)
-            input_tensor = input_tensor.to(torch.float32).to(config.device)
-            target_tensor = target_tensor.to(torch.float32).to(config.device)
+            input_tensor = input_tensor.to(config.device)
+            target_tensor = target_tensor.to(config.device)
             with torch.no_grad():
                 logits = model(input_tensor)
                 loss = criterion(logits, target_tensor)
-                epoch_val_losses.append(loss.item())
-        
-        # Calculate average validation loss for the epoch
-        avg_val_loss = np.mean(epoch_val_losses)
-        
+                epoch_test_losses.append(loss.item())
+
+        # Calculate average test loss for the epoch
+        avg_test_loss = np.mean(epoch_test_losses)
+
         # Store losses for plotting
         train_losses.append(avg_train_loss)
-        val_losses.append(avg_val_loss)
+        test_losses.append(avg_test_loss)
         epochs_list.append(epoch + 1)
         
-        print(f"Epoch [{epoch+1}/{config.num_epochs}], Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+        print(f"Epoch [{epoch+1}/{config.num_epochs}], Train Loss: {avg_train_loss:.4f}, Test Loss: {avg_test_loss:.4f}")
 
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
+        if avg_test_loss < best_test_loss:
+            best_test_loss = avg_test_loss
             model_state = {
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'train_loss': avg_train_loss,
-                'val_loss': avg_val_loss,
+                'test_loss': avg_test_loss,
             }
             # Create checkpoints directory if it doesn't exist
             Path(model_save_dir).mkdir(parents=True, exist_ok=True)
             torch.save(model_state, f"{model_save_dir}/best_part_2_model.pth")
-            print(f"Saved Best Model with Val Loss: {best_val_loss:.4f}")
+            print(f"Saved Best Model with Test Loss: {best_test_loss:.4f}")
 
-    # Plot training and validation losses
-    plot_training_curves(epochs_list, train_losses, val_losses, model_save_dir)
-    
+    # Plot training and test losses
+    plot_training_curves(epochs_list, train_losses, test_losses, model_save_dir)
+
 
 
 
 def plot_predictions_vs_true():
-    model = Part_2_Model(input_size=6, hidden_size=64, output_size=14).to(torch.float32)
+    model = Part_2_Model(input_size=10, hidden_size=64, output_size=14).to(torch.float32)
     model.load_state_dict(torch.load(f"/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints/best_part_2_model.pth", weights_only=False)['model_state_dict'])
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     model.to(device).eval()
-    val_car_pos = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/cart_pos.pt").to(torch.float32).to(device)
-    val_car_des_pos = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/cart_des_pos.pt").to(torch.float32).to(device)
-    val_input = torch.cat((val_car_pos, val_car_des_pos), dim=1).to(device)
-    val_qd_des_clip = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/qd_des_clip.pt").to(torch.float32).to(device)
-    val_q_des = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/q_des.pt").to(torch.float32).to(device)
+    val_q_mes = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test/q_mes.pt").to(torch.float32).to(device)
+    val_cart_des_pos = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test/cart_des_pos.pt").to(torch.float32).to(device)
+    val_input = torch.cat((val_q_mes, val_cart_des_pos), dim=1).to(device)
+    val_qd_des_clip = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test/qd_des_clip.pt").to(torch.float32).to(device)
+    val_q_des = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test/q_des.pt").to(torch.float32).to(device)
     val_target = torch.cat((val_q_des, val_qd_des_clip), dim=1).to(device)
     
+    print(f"Total validation samples: {val_input.shape[0]}")
 
     with torch.no_grad():
         predictions = model(val_input)
@@ -142,23 +147,34 @@ def plot_predictions_vs_true():
 
     # Plot for each dimension
     num_dimensions = predictions_np.shape[1]
+    
+    fig, axes = plt.subplots(7, 2, figsize=(15, 25))
+    fig.suptitle('Prediction vs. True Value for All Dimensions', fontsize=16)
+    axes = axes.flatten()
+
     for i in range(num_dimensions):
-        plt.figure(figsize=(10, 6))
-        plt.plot(true_values_np[:200, i], label='True Value', linewidth=2)
-        plt.plot(predictions_np[:200, i], label='Prediction', linestyle='--', linewidth=2)
-        plt.xlabel('Sample Index')
-        plt.ylabel('Value')
-        plt.title(f'Prediction vs. True Value for Dimension {i+1}')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        
-        # Save the plot
-        save_dir = "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints"
-        Path(save_dir).mkdir(parents=True, exist_ok=True)
-        plot_path = f"{save_dir}/prediction_vs_true_dim_{i+1}.png"
-        # plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        # print(f"Plot for dimension {i+1} saved to: {plot_path}")
-        plt.show()
+        ax = axes[i]
+        ax.plot(true_values_np[:, i], label='True Value', linewidth=2)
+        ax.plot(predictions_np[:, i], label='Prediction', linestyle='--', linewidth=2)
+        ax.set_xlabel('Sample Index')
+        ax.set_ylabel('Value')
+        ax.set_title(f'Dimension {i+1}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    # Hide any unused subplots
+    for i in range(num_dimensions, len(axes)):
+        axes[i].set_visible(False)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+    
+    # Save the plot
+    save_dir = "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints"
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    plot_path = f"{save_dir}/prediction_vs_true_all_dims.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    print(f"Plot saved to: {plot_path}")
+    plt.show()
 
 
 
@@ -186,4 +202,4 @@ def plot_training_curves(epochs, train_losses, val_losses, save_dir):
 
 if __name__ == "__main__":
     train_model()
-    # plot_predictions_vs_true()
+    plot_predictions_vs_true()

@@ -1,0 +1,173 @@
+import os
+import torch
+from torch import nn
+from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+
+
+class P1_dataset(Dataset):
+    def __init__(self, data_dir):
+        print("Initializing P1_dataset...")
+        self.q_mes_all = []
+        self.desired_cartesian_pos_all = []
+        self.q_des_all = []
+        self.qd_des_all = []
+        for files in os.listdir(data_dir):
+            if files.endswith('.pkl') and files != 'data_0.pkl':
+                file_path = os.path.join(data_dir, files)
+                data = self.read_pkl_file(file_path)
+                self.q_mes_all.append(data['q_mes_all'])
+                self.desired_cartesian_pos_all.append(data['desired_cartesian_pos_all'])
+                self.q_des_all.append(data['q_d_all'])
+                self.qd_des_all.append(data['qd_d_all'])
+        
+        self.q_mes_all = torch.tensor(np.concatenate(self.q_mes_all, axis=0), dtype=torch.float64)
+        self.desired_cartesian_pos_all = torch.tensor(np.concatenate(self.desired_cartesian_pos_all, axis=0), dtype=torch.float64)
+        self.q_des_all = torch.tensor(np.concatenate(self.q_des_all, axis=0), dtype=torch.float64)
+        self.qd_des_all = torch.tensor(np.concatenate(self.qd_des_all, axis=0), dtype=torch.float64)
+
+        print(f"Dataset initialized with {self.q_mes_all.shape[0]} samples.")
+        print(f"q_mes_all shape: {self.q_mes_all.shape}")
+        print(f"desired_cartesian_pos_all shape: {self.desired_cartesian_pos_all.shape}")
+        print(f"q_des_all shape: {self.q_des_all.shape}")
+        print(f"qd_des_all shape: {self.qd_des_all.shape}")
+
+        assert self.q_mes_all.shape[0] == self.desired_cartesian_pos_all.shape[0] == self.q_des_all.shape[0] == self.qd_des_all.shape[0], "Mismatch in number of samples among data arrays."
+
+    def read_pkl_file(self, file_path):
+        data = None
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+        return data
+
+
+    def __len__(self):
+        return self.q_mes_all.shape[0]
+
+
+    def __getitem__(self, idx):
+        return self.q_mes_all[idx], self.desired_cartesian_pos_all[idx], self.q_des_all[idx], self.qd_des_all[idx]
+
+
+class P1_MLP(nn.Module):
+    def __init__(self, input_size=10, output_size=14):
+        super(P1_MLP, self).__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, output_size)
+        )
+
+    def forward(self, x):
+        return self.mlp(x)
+
+
+def plot_loss_curves(train_losses, val_losses, save_path='loss_curves.png'):
+    """
+    Plot and save training and validation loss curves.
+    
+    Args:
+        train_losses: List of training losses per epoch
+        val_losses: List of validation losses per epoch
+        save_path: Path to save the plot image
+    """
+    num_epochs = len(train_losses)
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, num_epochs + 1), train_losses, label='Train Loss', markersize=3)
+    plt.plot(range(1, num_epochs + 1), val_losses, label='Validation Loss', markersize=3)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss Curves')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"Loss curves saved to '{save_path}'")
+    plt.show()
+
+
+def train():
+
+    batch_size = 64
+    learning_rate = 0.001
+    num_epochs = 100
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
+    dataset = P1_dataset(data_dir='./data/')
+
+    train_data, val_data = torch.utils.data.random_split(dataset, [int(0.8*len(dataset)), len(dataset) - int(0.8*len(dataset))])
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
+
+    loss_fn = nn.MSELoss()
+    model = P1_MLP(input_size=10, output_size=14)
+    model.to(torch.float64).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    # Lists to store losses for plotting
+    train_losses = []
+    val_losses = []
+    best_val_loss = float('inf')
+    best_model_path = 'part2_best_model.pth'
+
+    for epoch in range(num_epochs):
+        model.train()
+        epoch_loss = []
+        for batch in train_loader:
+            q_mes, desired_cartesian_pos, q_des, qd_des = batch
+            # Training code here
+            optimizer.zero_grad()
+            inputs = torch.cat((q_mes, desired_cartesian_pos), dim=1)
+            targets = torch.cat((q_des, qd_des), dim=1)
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+            outputs = model(inputs)
+            loss = loss_fn(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            epoch_loss.append(loss.item())
+        avg_loss = sum(epoch_loss) / len(epoch_loss)
+        train_losses.append(avg_loss)
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
+
+        model.eval()
+        with torch.no_grad():
+            val_loss = []
+            for batch in val_loader:
+                q_mes, desired_cartesian_pos, q_des, qd_des = batch
+                inputs = torch.cat((q_mes, desired_cartesian_pos), dim=1)
+                targets = torch.cat((q_des, qd_des), dim=1)
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                outputs = model(inputs)
+                loss = loss_fn(outputs, targets)
+                val_loss.append(loss.item())
+            avg_val_loss = sum(val_loss) / len(val_loss)
+            val_losses.append(avg_val_loss)
+            print(f"Validation Loss: {avg_val_loss:.4f}")
+            
+            # Save the best model
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                torch.save(model.state_dict(), best_model_path)
+                print(f"Best model saved with validation loss: {best_val_loss:.4f}")
+
+
+    print(f"\nTraining complete! Best validation loss: {best_val_loss:.4f}")
+    print(f"Best model saved to '{best_model_path}'")
+
+    # Plot loss curves
+    plot_loss_curves(train_losses, val_losses)
+
+
+    # Validation code here
+
+if __name__ == "__main__":
+    train()

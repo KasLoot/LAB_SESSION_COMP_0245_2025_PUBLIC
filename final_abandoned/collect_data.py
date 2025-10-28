@@ -63,10 +63,8 @@ def initialize_simulation():
 def generate_pose(num_poses, init_joint_angles):
     list_of_desired_cartesian_positions = []
     for _ in range(num_poses):
-        # First element: [-0.5:-0.2] or [0.2:0.5]
-        x = np.random.uniform(0.3, 0.5)
-        # Second element: [-0.5:-0.2] or [0.2:0.5]
-        y = np.random.uniform(-0.4, 0.5)
+        x = np.random.choice([np.random.uniform(0.3, 0.5), np.random.uniform(-0.5, -0.3)])
+        y = np.random.choice([np.random.uniform(0.4, 0.5), np.random.uniform(-0.5, -0.4)])
         # Third element: [0.1:0.6]
         z = np.random.uniform(0.1, 0.6)
         list_of_desired_cartesian_positions.append([x, y, z])
@@ -110,15 +108,16 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
     time_step = sim.GetTimeStep()
 
     # Convergence threshold for end-effector position (meters)
-    cartesian_pos_tolerance = 0.001  # Adjust this value as needed
+    cartesian_pos_tolerance = 0.0001  # Adjust this value as needed
 
-    q_diff_all = []
-    qd_diff_all = []
+
+    q_mes_all = []
+    q_des_all = []
+    qd_mes_all = []
+    qd_des_clip_all = []
     tau_cmd_all = []
     cart_pos_all = []
     cart_des_pos_all = []
-    q_des_all = []
-    qd_des_clip_all = []
 
     for i in range(len(list_of_desired_cartesian_positions)):
         desired_cartesian_pos = np.array(list_of_desired_cartesian_positions[i])
@@ -155,15 +154,14 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
 
             # Store data
             if t > 50:  # Skip initial transient
-                q_diff = q_des - q_mes
-                qd_diff = qd_des_clip - qd_mes
-                q_diff_all.append(q_diff)
-                qd_diff_all.append(qd_diff)
+                q_mes_all.append(q_mes)
+                qd_mes_all.append(qd_mes)
+                q_des_all.append(q_des)
+                qd_des_clip_all.append(qd_des_clip)
+
                 tau_cmd_all.append(tau_cmd)
                 cart_pos_all.append(cart_pos)
                 cart_des_pos_all.append(desired_cartesian_pos)
-                q_des_all.append(q_des)
-                qd_des_clip_all.append(qd_des_clip)
 
             if cart_distance < cartesian_pos_tolerance:
                 print(f"Not collecting data at step {t}, cart_distance: {cart_distance}")
@@ -171,23 +169,35 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
 
     
     # Save collected data
-    q_diff_all = torch.tensor(q_diff_all)
-    qd_diff_all = torch.tensor(qd_diff_all)
+    q_mes_all = torch.tensor(q_mes_all)
+    qd_mes_all = torch.tensor(qd_mes_all)
+    q_des_all = torch.tensor(q_des_all)
+    qd_des_clip_all = torch.tensor(qd_des_clip_all)
     tau_cmd_all = torch.tensor(tau_cmd_all)
     cart_pos_all = torch.tensor(cart_pos_all)
     cart_des_pos_all = torch.tensor(cart_des_pos_all)
-    q_des_all = torch.tensor(q_des_all)
-    qd_des_clip_all = torch.tensor(qd_des_clip_all)
 
-    print(f"q_diff_all shape: {q_diff_all.shape}")
-    print(f"qd_diff_all shape: {qd_diff_all.shape}")
+    # Downsample with step 2
+    q_mes_all = q_mes_all[::2]
+    qd_mes_all = qd_mes_all[::2]
+    q_des_all = q_des_all[::2]
+    qd_des_clip_all = qd_des_clip_all[::2]
+    tau_cmd_all = tau_cmd_all[::2]
+    cart_pos_all = cart_pos_all[::2]
+    cart_des_pos_all = cart_des_pos_all[::2]
+
+
     print(f"tau_cmd_all shape: {tau_cmd_all.shape}")
     print(f"cart_pos_all shape: {cart_pos_all.shape}")
     print(f"cart_des_pos_all shape: {cart_des_pos_all.shape}")
     print(f"q_des_all shape: {q_des_all.shape}")
     print(f"qd_des_clip_all shape: {qd_des_clip_all.shape}")
-    torch.save(q_diff_all, os.path.join(save_path, "q_diff.pt"))
-    torch.save(qd_diff_all, os.path.join(save_path, "qd_diff.pt"))
+
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    torch.save(q_mes_all, os.path.join(save_path, "q_mes.pt"))
+    torch.save(qd_mes_all, os.path.join(save_path, "qd_mes.pt"))
     torch.save(tau_cmd_all, os.path.join(save_path, "tau_cmd.pt"))
     torch.save(cart_pos_all, os.path.join(save_path, "cart_pos.pt"))
     torch.save(cart_des_pos_all, os.path.join(save_path, "cart_des_pos.pt"))
@@ -195,4 +205,6 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
     torch.save(qd_des_clip_all, os.path.join(save_path, "qd_des_clip.pt"))
 
 
-collect_data(num_poses=10, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/")
+collect_data(num_poses=100, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/train/")
+collect_data(num_poses=20, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test/")
+collect_data(num_poses=20, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/test/")

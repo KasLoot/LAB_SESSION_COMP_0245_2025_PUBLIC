@@ -10,9 +10,10 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from rollout_loader import load_rollouts
 
-from pathlib import Path
+from part_2 import P1_MLP
+import torch
 
-np.random.seed(42)
+from pathlib import Path
 
 FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
 FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
@@ -36,24 +37,17 @@ def get_downsample_rate():
         print("Please enter a valid integer.")
         return None
 
-def generate_data(num_poses=10, init_joint_angles=None):
-    list_of_desired_cartesian_positions = []
-    list_of_desired_cartesian_orientations = []
-    list_of_type_of_control = [] # "pos",  "ori" or "both"
-    list_of_duration_per_desired_cartesian_positions = []
-    list_of_initialjoint_positions = []  # if None, use default initial joint angles
-    for _ in range(num_poses):
-        x = np.random.choice([np.random.uniform(0.3, 0.5), np.random.uniform(-0.5, -0.3)])
-        y = np.random.choice([np.random.uniform(0.4, 0.5), np.random.uniform(-0.5, -0.4)])
-        # Third element: [0.1:0.6]
-        z = np.random.uniform(0.1, 0.6)
-        list_of_desired_cartesian_positions.append([x, y, z])
-        list_of_desired_cartesian_orientations.append([0.0, 0.0, 0.0, 1.0])
-        list_of_type_of_control.append("pos")  # "pos",  "ori" or "both"
-        list_of_duration_per_desired_cartesian_positions.append(3.0)  # in seconds
-        list_of_initialjoint_positions.append(init_joint_angles)  # use default initial joint angles
 
-    return list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions
+def model_prediction(q_mes, desired_cartesian_pos):
+    model = P1_MLP(input_size=10, output_size=14).to(torch.float64)
+    model.load_state_dict(torch.load('part1_best_model.pth'))
+    model.eval()
+    with torch.no_grad():
+        input_tensor = torch.tensor(np.concatenate((q_mes, desired_cartesian_pos)), dtype=torch.float64)
+        output = model(input_tensor)
+        q_des = output[:7].numpy()
+        qd_des = output[7:].numpy()
+    return q_des, qd_des
 
 
 def main():
@@ -109,21 +103,19 @@ def main():
     kp = 1000
     kd = 100
 
-    # # desired cartesian position
-    # list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
-    #                                        [0.4,0.2,0.1], 
-    #                                        [0.4,-0.2,0.1], 
-    #                                        [0.5,0.0,0.1]]
-    # # desired cartesian orientation in quaternion (XYZW)
-    # list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
-    #                                           [0.0, 0.0, 0.0, 1.0],
-    #                                           [0.0, 0.0, 0.0, 1.0],
-    #                                           [0.0, 0.0, 0.0, 1.0]]
-    # list_of_type_of_control = ["pos", "pos", "pos", "pos"] # "pos",  "ori" or "both"
-    # list_of_duration_per_desired_cartesian_positions = [3.0, 3.0, 3.0, 3.0] # in seconds
-    # list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
-
-    list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions = generate_data(num_poses=10, init_joint_angles=init_joint_angles)
+    # desired cartesian position
+    list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
+                                           [0.4,0.2,0.1], 
+                                           [0.4,-0.2,0.1], 
+                                           [0.5,0.0,0.1]]
+    # desired cartesian orientation in quaternion (XYZW)
+    list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0]]
+    list_of_type_of_control = ["pos", "pos", "pos", "pos"] # "pos",  "ori" or "both"
+    list_of_duration_per_desired_cartesian_positions = [3.0, 3.0, 3.0, 3.0] # in seconds
+    list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
 
     # Initialize data storage
     q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
@@ -163,6 +155,10 @@ def main():
             ori_d_des = [0.0, 0.0, 0.0]  # Desired angular velocity
             # Compute desired joint positions and velocities using Cartesian differential kinematics
             q_des, qd_des_clip = CartesianDiffKin(dyn_model,controlled_frame_name,q_mes, desired_cartesian_pos, pd_d, desired_cartesian_ori, ori_d_des, time_step, "pos",  kp_pos, kp_ori, np.array(joint_vel_limits))
+
+            q_des_model, qd_des_model = model_prediction(q_mes, desired_cartesian_pos)
+            q_des = q_des_model
+            qd_des_clip = qd_des_model
             
             # Control command
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)
@@ -179,14 +175,14 @@ def main():
                 print("Exiting simulation.")
                 break
 
-            cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
-            print(f"Pose No.{i}, desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
-            print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
+            # cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
+            # print(f"desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
+            # print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
 
-            if cart_distance_error < 0.01:
-                print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
-                # Optionally, you can break here if you want to stop when the position is reached
-                # break
+            # if cart_distance_error < 0.01:
+            #     print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
+            #     # Optionally, you can break here if you want to stop when the position is reached
+            #     # break
 
             
             # Conditional data recording
@@ -208,7 +204,7 @@ def main():
         current_time = 0  # Reset current time for potential future use
 
         if len(q_mes_all) > 0:    
-            print("Preparing to save data...")
+            # print("Preparing to save data...")
             # Downsample data
             # Plot the downsampled data
             
@@ -223,21 +219,21 @@ def main():
 
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
-            # Save data to pickle file and for name use the current iteration number
-            filename = FINAL_DIR / f"data_{i}.pkl"
-            with open(filename, 'wb') as f:
-                pickle.dump({
-                    'time': time_array,
-                    'q_mes_all': q_mes_all_downsampled,
-                    'qd_mes_all': qd_mes_all_downsampled,
-                    'q_d_all': q_d_all_downsampled,
-                    'qd_d_all': qd_d_all_downsampled,
-                    'tau_mes_all': tau_mes_all_downsampled,
-                    'cart_pos_all': cart_pos_all_downsampled,
-                    'cart_ori_all': cart_ori_all_downsampled,
-                    'desired_cartesian_pos_all': desired_cartesian_pos_all_downsampled
-                }, f)
-            print(f"Data saved to {filename}")
+            # # Save data to pickle file and for name use the current iteration number
+            # filename = FINAL_DIR / f"data_{i}.pkl"
+            # with open(filename, 'wb') as f:
+            #     pickle.dump({
+            #         'time': time_array,
+            #         'q_mes_all': q_mes_all_downsampled,
+            #         'qd_mes_all': qd_mes_all_downsampled,
+            #         'q_d_all': q_d_all_downsampled,
+            #         'qd_d_all': qd_d_all_downsampled,
+            #         'tau_mes_all': tau_mes_all_downsampled,
+            #         'cart_pos_all': cart_pos_all_downsampled,
+            #         'cart_ori_all': cart_ori_all_downsampled,
+            #         'desired_cartesian_pos_all': desired_cartesian_pos_all_downsampled
+            #     }, f)
+            # print(f"Data saved to {filename}")
 
             # Reinitialize data storage lists
         q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, desired_cartesian_pos_all = [], [], [], [], [], [], [], []

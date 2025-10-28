@@ -69,7 +69,7 @@ class P2_MLP(nn.Module):
         return self.mlp(x)
 
 
-def plot_loss_curves(train_losses, val_losses, save_path='loss_curves.png'):
+def plot_loss_curves(train_losses, val_losses, save_path='part2_loss_curves.png'):
     """
     Plot and save training and validation loss curves.
     

@@ -50,7 +50,7 @@ def generate_data(num_poses=10, init_joint_angles=None):
         list_of_desired_cartesian_positions.append([x, y, z])
         list_of_desired_cartesian_orientations.append([0.0, 0.0, 0.0, 1.0])
         list_of_type_of_control.append("pos")  # "pos",  "ori" or "both"
-        list_of_duration_per_desired_cartesian_positions.append(3.0)  # in seconds
+        list_of_duration_per_desired_cartesian_positions.append(2.0)  # in seconds
         list_of_initialjoint_positions.append(init_joint_angles)  # use default initial joint angles
 
     return list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions
@@ -128,6 +128,7 @@ def main():
     # Initialize data storage
     q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
     desired_cartesian_pos_all = []
+    tau_cmd_all = []
 
     current_time = 0  # Initialize current time
     time_step = sim.GetTimeStep()
@@ -199,6 +200,7 @@ def main():
                 cart_pos_all.append(cart_pos)
                 cart_ori_all.append(cart_ori)
                 desired_cartesian_pos_all.append(desired_cartesian_pos)
+                tau_cmd_all.append(tau_cmd)
 
             # Time management
             time.sleep(time_step)  # Control loop timing
@@ -220,6 +222,7 @@ def main():
             cart_pos_all_downsampled = cart_pos_all[::downsample_rate]
             cart_ori_all_downsampled = cart_ori_all[::downsample_rate]
             desired_cartesian_pos_all_downsampled = desired_cartesian_pos_all[::downsample_rate]
+            tau_cmd_all_downsampled = tau_cmd_all[::downsample_rate]
 
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
@@ -235,12 +238,13 @@ def main():
                     'tau_mes_all': tau_mes_all_downsampled,
                     'cart_pos_all': cart_pos_all_downsampled,
                     'cart_ori_all': cart_ori_all_downsampled,
-                    'desired_cartesian_pos_all': desired_cartesian_pos_all_downsampled
+                    'desired_cartesian_pos_all': desired_cartesian_pos_all_downsampled,
+                    'tau_cmd_all': tau_cmd_all_downsampled
                 }, f)
             print(f"Data saved to {filename}")
 
             # Reinitialize data storage lists
-        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, desired_cartesian_pos_all = [], [], [], [], [], [], [], []
+        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, desired_cartesian_pos_all, tau_cmd_all = [], [], [], [], [], [], [], [], []
 
         if PRINT_PLOTS:
             print("Plotting downsampled data...")

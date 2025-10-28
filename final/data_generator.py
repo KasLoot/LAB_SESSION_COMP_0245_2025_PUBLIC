@@ -7,12 +7,7 @@ import threading
 import pickle
 
 import sys
-
-import torch
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from final.part_2.model import Part_2_Model
-from final.part_1.model import Part_1_Model
 from final.rollout_loader import load_rollouts
 
 from pathlib import Path
@@ -20,12 +15,8 @@ from pathlib import Path
 FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
 FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
 
-# Create data directory
-DATA_DIR = FINAL_DIR / "data" / "raw_data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)  # create if it doesn't exist
 
-
-PRINT_PLOTS = True  # Set to True to enable plotting
+PRINT_PLOTS = False  # Set to True to enable plotting
 RECORDING = True  # Set to True to enable data recording
 
 # downsample rate needs to be bigger than one (is how much I steps I skip when i downsample the data)
@@ -42,22 +33,6 @@ def get_downsample_rate():
     except ValueError:
         print("Please enter a valid integer.")
         return None
-
-
-def model_predict(q_des, q_mes, qd_des, qd_mes):
-    input_tensor = torch.tensor(np.concatenate((q_des - q_mes, qd_des - qd_mes), axis=0)).to(torch.float32)
-    checkpoint = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_2/checkpoints/best_part_2_model.pth", weights_only=False)
-    model = Part_2_Model(input_size=14, hidden_size=64, output_size=7)
-    model_state_dict = checkpoint["model_state_dict"]
-    model.load_state_dict(model_state_dict)
-    model.eval()
-    with torch.no_grad():
-        tau_cmd = model(input_tensor)
-        print(f"Raw tau_cmd from model: \n{tau_cmd}")
-    tau_cmd = np.array(tau_cmd)
-
-
-    return tau_cmd
 
 
 def main():
@@ -112,42 +87,20 @@ def main():
     # PD controller gains low level (feedback gain)
     kp = 1000
     kd = 100
-    
-
 
     # desired cartesian position
-    # Generate random positions with specified ranges
-    # Initial joint angles: [0.0, 1.0323, 0.0, 0.8247, 0.0, 1.57, 0.0]
-    # Lower limits: [-2.8973, -1.7628, -2.8973, 0.0, -2.8973, -0.0175, -2.8973]
-    # Upper limits: [2.8973, 1.7628, 2.8973, 3.002, 2.8973, 3.7525, 2.8973]
-    # joint vel limits: [2.175, 2.175, 2.175, 2.175, 2.61, 2.61, 2.61]
-    num_positions = 100
-    list_of_desired_cartesian_positions = []
-    for _ in range(num_positions):
-        # First element: [-0.5:-0.3] or [0.3:0.5]
-        x = np.random.choice([np.random.uniform(-0.5, -0.3), np.random.uniform(0.3, 0.5)])
-        # Second element: [-0.5:-0.4] or [0.4:0.5]
-        y = np.random.choice([np.random.uniform(-0.5, -0.4), np.random.uniform(0.4, 0.5)])
-        # Third element: [0.1:0.6]
-        z = np.random.uniform(0.1, 0.6)
-        list_of_desired_cartesian_positions.append([x, y, z])
-    
+    list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
+                                           [0.4,0.2,0.1], 
+                                           [0.4,-0.2,0.1], 
+                                           [0.5,0.0,0.1]]
     # desired cartesian orientation in quaternion (XYZW)
-    # Generate random unit quaternions
-    list_of_desired_cartesian_orientations = []
-    for _ in range(num_positions):
-        list_of_desired_cartesian_orientations.append([0.0, 0.0, 0.0, 1.0])
-    print(f"list_of_desired_cartesian_orientations: {list_of_desired_cartesian_orientations}")
-    # for _ in range(num_positions):
-    #     # Generate random quaternion components
-    #     quat = np.random.randn(4)
-    #     # Normalize to make it a unit quaternion
-    #     quat = quat / np.linalg.norm(quat)
-    #     list_of_desired_cartesian_orientations.append(quat.tolist())
-    
-    list_of_type_of_control = ["pos"] * num_positions # "pos",  "ori" or "both"
-    list_of_duration_per_desired_cartesian_positions = [5.0] * num_positions # in seconds
-    list_of_initialjoint_positions = [init_joint_angles] * num_positions
+    list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0],
+                                              [0.0, 0.0, 0.0, 1.0]]
+    list_of_type_of_control = ["pos", "pos", "pos", "pos"] # "pos",  "ori" or "both"
+    list_of_duration_per_desired_cartesian_positions = [5.0, 5.0, 5.0, 5.0] # in seconds
+    list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
 
     # Initialize data storage
     q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
@@ -155,8 +108,6 @@ def main():
     current_time = 0  # Initialize current time
     time_step = sim.GetTimeStep()
 
-    # Convergence threshold for end-effector position (meters)
-    cartesian_pos_tolerance = 0.001  # Adjust this value as needed
 
     for i in range(len(list_of_desired_cartesian_positions)):
 
@@ -168,18 +119,7 @@ def main():
             init_position = init_joint_angles
         else:
             init_position = list_of_initialjoint_positions[i]
-        diff_kin = CartesianDiffKin(dyn_model, 
-                                    controlled_frame_name, 
-                                    init_position, 
-                                    desired_cartesian_pos, 
-                                    np.zeros(3), 
-                                    desired_cartesian_ori, 
-                                    np.zeros(3), 
-                                    time_step, 
-                                    type_of_control, 
-                                    kp_pos, 
-                                    kp_ori, 
-                                    np.array(joint_vel_limits))
+        diff_kin = CartesianDiffKin(dyn_model, controlled_frame_name, init_position, desired_cartesian_pos, np.zeros(3), desired_cartesian_ori, np.zeros(3), time_step, type_of_control, kp_pos, kp_ori, np.array(joint_vel_limits))
         steps = int(duration_per_desired_cartesian_pos/time_step)
 
         # reinitialize the robot to the initial position
@@ -194,7 +134,6 @@ def main():
             qd_mes = sim.GetMotorVelocities(0)
             qdd_est = sim.ComputeMotorAccelerationTMinusOne(0)
             tau_mes = np.asarray(sim.GetMotorTorques(0),dtype=float)
-            print(" torque measurement: ", tau_mes)
 
             pd_d = [0.0, 0.0, 0.0]  # Desired linear velocity
             ori_d_des = [0.0, 0.0, 0.0]  # Desired angular velocity
@@ -203,13 +142,7 @@ def main():
             
             # Control command
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)
-            print(f"PD control torque command from feedback lin ctrl: {tau_cmd}")
-            p_tau = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, 0)
-            print(f"Proportional torque command from feedback lin ctrl: {p_tau}")
-            tau_cmd_model_predict = model_predict(q_des=q_des, q_mes=q_mes, qd_des=qd_des_clip, qd_mes=qd_mes)
-            print(f"Torque command from model prediction: {tau_cmd_model_predict}")
-
-            cmd.SetControlCmd(tau_cmd_model_predict, ["torque"] * 7)  # Set the torque command
+            cmd.SetControlCmd(tau_cmd, ["torque"] * 7)  # Set the torque command
             sim.Step(cmd, "torque")  # Simulation step with torque command
 
 
@@ -224,7 +157,7 @@ def main():
 
             
             # Conditional data recording
-            if RECORDING and t > 10:
+            if RECORDING:
                 q_mes_all.append(q_mes)
                 qd_mes_all.append(qd_mes)
                 q_d_all.append(q_des)
@@ -234,18 +167,10 @@ def main():
                 cart_ori_all.append(cart_ori)
                 tau_cmd_all.append(tau_cmd)
 
-            # Check if end-effector position has converged to desired values
-            cartesian_error = np.linalg.norm(np.array(cart_pos) - np.array(desired_cartesian_pos))
-            if cartesian_error < cartesian_pos_tolerance and t > 10:
-                print(f"Trajectory {i}: End-effector position converged at step {t} (time: {current_time:.2f}s)")
-                break
-
             # Time management
             time.sleep(time_step)  # Control loop timing
             current_time += time_step
             #print("Current time in seconds:", current_time)
-            tau_mes = np.asarray(sim.GetMotorTorques(0),dtype=float)
-            print(f"After torque measurement: {tau_mes}\n\n")
     
         current_time = 0  # Reset current time for potential future use
 
@@ -263,64 +188,61 @@ def main():
             cart_ori_all_downsampled = cart_ori_all[::downsample_rate]
             tau_cmd_all_downsampled = tau_cmd_all[::downsample_rate]
 
+            print(f"q_mes_all_downsampled shape: {np.array(q_mes_all_downsampled).shape}")
+            print(f"qd_mes_all_downsampled shape: {np.array(qd_mes_all_downsampled).shape}")
+            print(f"q_d_all_downsampled shape: {np.array(q_d_all_downsampled).shape}")
+            print(f"qd_d_all_downsampled shape: {np.array(qd_d_all_downsampled).shape}")
+            print(f"tau_mes_all_downsampled shape: {np.array(tau_mes_all_downsampled).shape}")
+            print(f"cart_pos_all_downsampled shape: {np.array(cart_pos_all_downsampled).shape}")
+            print(f"cart_ori_all_downsampled shape: {np.array(cart_ori_all_downsampled).shape}")
+            print(f"tau_cmd_all_downsampled shape: {np.array(tau_cmd_all_downsampled).shape}")
+
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
             # Save data to pickle file and for name use the current iteration number
-            filename = DATA_DIR / f"data_{i}.pkl"
+            filename = FINAL_DIR / f"data_{i}.pkl"
             with open(filename, 'wb') as f:
                 pickle.dump({
                     'time': time_array,
                     'q_mes_all': q_mes_all_downsampled,
                     'qd_mes_all': qd_mes_all_downsampled,
-                    'q_d_all': q_d_all_downsampled,
-                    'qd_d_all': qd_d_all_downsampled,
                     'tau_mes_all': tau_mes_all_downsampled,
                     'cart_pos_all': cart_pos_all_downsampled,
                     'cart_ori_all': cart_ori_all_downsampled,
+                    'q_d_all': q_d_all_downsampled,
+                    'qd_d_all': qd_d_all_downsampled,
                     'tau_cmd_all': tau_cmd_all_downsampled
                 }, f)
             print(f"Data saved to {filename}")
 
             # Reinitialize data storage lists
-            q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
+        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
 
-            if PRINT_PLOTS:
-                print("Plotting downsampled data...")
-                # Plot joint positions for each joint
-                num_joints = len(q_mes_all_downsampled[0])
-                fig, axs = plt.subplots(num_joints, 1, figsize=(12, 2 * num_joints), sharex=True)
-                fig.suptitle('Desired vs. Measured Joint Angles', fontsize=16)
+        if PRINT_PLOTS:
+            print("Plotting downsampled data...")
+            # Plot joint positions
+            plt.figure(figsize=(12, 6))
+            for joint_idx in range(len(q_mes_all_downsampled[0])):
+                joint_positions = [q[joint_idx] for q in q_mes_all_downsampled]
+                plt.plot(time_array, joint_positions, label=f'Joint {joint_idx+1}')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Joint Positions (rad)')
+            plt.title('Downsampled Joint Positions')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
-                for joint_idx in range(num_joints):
-                    measured_positions = [q[joint_idx] for q in q_mes_all_downsampled]
-                    desired_positions = [q[joint_idx] for q in q_d_all_downsampled]
-                    
-                    axs[joint_idx].plot(time_array, measured_positions, label=f'Measured Joint {joint_idx+1}')
-                    axs[joint_idx].plot(time_array, desired_positions, label=f'Desired Joint {joint_idx+1}', linestyle='--')
-                    axs[joint_idx].set_ylabel('Angle (rad)')
-                    axs[joint_idx].set_title(f'Joint {joint_idx+1}')
-                    axs[joint_idx].legend()
-                    axs[joint_idx].grid(True)
-
-                plt.xlabel('Time (s)')
-                plt.tight_layout(rect=[0, 0.03, 1, 0.96])
-                plt.show()
-
-
-                # Plot joint velocities
-                plt.figure(figsize=(12, 6))
-                for joint_idx in range(len(qd_mes_all_downsampled[0])):
-                    joint_velocities = [qd[joint_idx] for qd in qd_mes_all_downsampled]
-                    plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
-                plt.xlabel('Time (s)')
-                plt.ylabel('Joint Velocities (rad/s)')
-                plt.title('Downsampled Joint Velocities')
-                plt.legend()
-                plt.grid(True)
-                plt.show()
-        else:
-            # Reinitialize data storage lists
-            q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [], []
+            # Plot joint velocities
+            plt.figure(figsize=(12, 6))
+            for joint_idx in range(len(qd_mes_all_downsampled[0])):
+                joint_velocities = [qd[joint_idx] for qd in qd_mes_all_downsampled]
+                plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Joint Velocities (rad/s)')
+            plt.title('Downsampled Joint Velocities')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
     
     
     
@@ -328,6 +250,6 @@ def main():
 if __name__ == '__main__':
     main()
     # test rollout loader
-    rls = load_rollouts(indices=[0,1,2,3], directory=DATA_DIR)  # looks for ./data/data_1.pkl or ./data/1.pkl, up to 4
+    rls = load_rollouts(indices=[0,1,2,3], directory=FINAL_DIR)  # looks for ./data_1.pkl or ./1.pkl, up to 4
     print(f"Loaded {len(rls)} rollouts")
     print("First rollout keys lengths:",len(rls[0].time),len(rls[0].q_mes_all),len(rls[0].qd_mes_all))

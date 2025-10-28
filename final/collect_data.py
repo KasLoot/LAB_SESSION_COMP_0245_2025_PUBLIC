@@ -195,4 +195,4 @@ def collect_data(num_poses=5, save_path="q_diff.pt"):
     torch.save(qd_des_clip_all, os.path.join(save_path, "qd_des_clip.pt"))
 
 
-collect_data(num_poses=5, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/")
+collect_data(num_poses=10, save_path="/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/")

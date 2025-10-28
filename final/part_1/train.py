@@ -22,7 +22,7 @@ import numpy as np
 @dataclass
 class TrainingConfig:
     batch_size: int = 32
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-2
     num_epochs: int = 200
     device: str = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -42,7 +42,7 @@ def train_model(config: TrainingConfig = TrainingConfig()):
 
 
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
 
     model = Part_1_Model(input_size=7, hidden_size=64, output_size=7).to(torch.float32)
     
@@ -178,6 +178,91 @@ def plot_training_curves(epochs, train_losses, val_losses, save_dir):
     plt.show()
 
 
+def calculate_r_squared_metrics():
+    """
+    Calculate and print R-squared and Adjusted R-squared for all seven joints
+    using the best model on the validation dataset.
+    """
+    # Load the best model
+    model = Part_1_Model(input_size=7, hidden_size=64, output_size=7).to(torch.float32)
+    checkpoint = torch.load(
+        "/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/part_1/checkpoints/best_part_1_model.pth",
+        weights_only=False
+    )
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+    model.to(device).eval()
+    
+    # Load validation data
+    val_q_diff = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/q_diff.pt").to(torch.float32).to(device)
+    val_tau_cmd = torch.load("/home/yuxin/LAB_SESSION_COMP_0245_2025_PUBLIC/final/data/val/tau_cmd.pt").to(torch.float32).to(device)
+    
+    # Get predictions
+    with torch.no_grad():
+        predictions = model(val_q_diff)
+    
+    # Convert to numpy for calculations
+    predictions_np = predictions.cpu().numpy()
+    true_values_np = val_tau_cmd.cpu().numpy()
+    
+    # Number of samples and features (joints)
+    n_samples = predictions_np.shape[0]
+    n_features = 7  # input_size
+    
+    print("\n" + "="*80)
+    print("R-SQUARED AND ADJUSTED R-SQUARED METRICS FOR ALL SEVEN JOINTS")
+    print("="*80)
+    print(f"Number of samples: {n_samples}")
+    print(f"Number of input features: {n_features}")
+    print("-"*80)
+    
+    # Calculate metrics for each joint
+    for joint_idx in range(7):
+        y_true = true_values_np[:, joint_idx]
+        y_pred = predictions_np[:, joint_idx]
+        
+        # Calculate R-squared
+        ss_res = np.sum((y_true - y_pred) ** 2)  # Residual sum of squares
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)  # Total sum of squares
+        r_squared = 1 - (ss_res / ss_tot)
+        
+        # Calculate Adjusted R-squared
+        # Adjusted R² = 1 - [(1 - R²) * (n - 1) / (n - p - 1)]
+        # where n = number of samples, p = number of features
+        adjusted_r_squared = 1 - ((1 - r_squared) * (n_samples - 1) / (n_samples - n_features - 1))
+        
+        print(f"Joint {joint_idx + 1}:")
+        print(f"  R-squared:          {r_squared:.6f}")
+        print(f"  Adjusted R-squared: {adjusted_r_squared:.6f}")
+        print("-"*80)
+    
+    # Calculate overall metrics (average across all joints)
+    all_r_squared = []
+    all_adjusted_r_squared = []
+    
+    for joint_idx in range(7):
+        y_true = true_values_np[:, joint_idx]
+        y_pred = predictions_np[:, joint_idx]
+        
+        ss_res = np.sum((y_true - y_pred) ** 2)
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot)
+        adjusted_r_squared = 1 - ((1 - r_squared) * (n_samples - 1) / (n_samples - n_features - 1))
+        
+        all_r_squared.append(r_squared)
+        all_adjusted_r_squared.append(adjusted_r_squared)
+    
+    avg_r_squared = np.mean(all_r_squared)
+    avg_adjusted_r_squared = np.mean(all_adjusted_r_squared)
+    
+    print(f"AVERAGE ACROSS ALL JOINTS:")
+    print(f"  Average R-squared:          {avg_r_squared:.6f}")
+    print(f"  Average Adjusted R-squared: {avg_adjusted_r_squared:.6f}")
+    print("="*80 + "\n")
+
+
 if __name__ == "__main__":
     train_model()
+    calculate_r_squared_metrics()
     plot_predictions_vs_true()

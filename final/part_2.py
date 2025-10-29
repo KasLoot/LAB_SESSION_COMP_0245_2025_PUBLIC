@@ -6,6 +6,9 @@ import torch.nn.functional as F
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
+from tqdm import tqdm
+
+torch.manual_seed(10)
 
 
 class P2_dataset(Dataset):
@@ -69,22 +72,24 @@ class P2_MLP(nn.Module):
         return self.mlp(x)
 
 
-def plot_loss_curves(train_losses, val_losses, save_path='part2_loss_curves.png'):
+def plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_loss_curves.png'):
     """
-    Plot and save training and validation loss curves.
+    Plot and save training, validation, and test loss curves.
     
     Args:
         train_losses: List of training losses per epoch
         val_losses: List of validation losses per epoch
+        test_losses: List of test losses per epoch
         save_path: Path to save the plot image
     """
     num_epochs = len(train_losses)
     plt.figure(figsize=(10, 6))
     plt.plot(range(1, num_epochs + 1), train_losses, label='Train Loss', markersize=3)
     plt.plot(range(1, num_epochs + 1), val_losses, label='Validation Loss', markersize=3)
+    plt.plot(range(1, num_epochs + 1), test_losses, label='Test Loss', markersize=3)
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title('Training and Validation Loss Curves')
+    plt.title('Training, Validation, and Test Loss Curves')
     plt.legend()
     plt.grid(True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -94,17 +99,20 @@ def plot_loss_curves(train_losses, val_losses, save_path='part2_loss_curves.png'
 
 def train():
 
-    batch_size = 64
+    batch_size = 512
     learning_rate = 0.001
-    num_epochs = 100
+    num_epochs = 30
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    dataset = P2_dataset(data_dir='./data/')
+    dataset = P2_dataset(data_dir='./data/train_2/')
 
     train_data, val_data = torch.utils.data.random_split(dataset, [int(0.8*len(dataset)), len(dataset) - int(0.8*len(dataset))])
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
+
+    test_dataset = P2_dataset(data_dir='./data/test/')
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     loss_fn = nn.MSELoss()
     model = P2_MLP(input_size=10, output_size=14)
@@ -114,13 +122,15 @@ def train():
     # Lists to store losses for plotting
     train_losses = []
     val_losses = []
+    test_losses = []
     best_val_loss = float('inf')
-    best_model_path = 'part2_best_model.pth'
+    best_test_loss = float('inf')
+    best_model_path = 'part2_best_model_v2.pth'
 
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = []
-        for batch in train_loader:
+        for batch in tqdm(train_loader, desc=f"Training Epoch {epoch+1}/{num_epochs}"):
             q_mes, desired_cartesian_pos, q_des, qd_des = batch
             # Training code here
             optimizer.zero_grad()
@@ -133,9 +143,8 @@ def train():
             loss.backward()
             optimizer.step()
             epoch_loss.append(loss.item())
-        avg_loss = sum(epoch_loss) / len(epoch_loss)
-        train_losses.append(avg_loss)
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
+        avg_train_loss = sum(epoch_loss) / len(epoch_loss)
+        train_losses.append(avg_train_loss)
 
         model.eval()
         with torch.no_grad():
@@ -151,25 +160,42 @@ def train():
                 val_loss.append(loss.item())
             avg_val_loss = sum(val_loss) / len(val_loss)
             val_losses.append(avg_val_loss)
-            print(f"Validation Loss: {avg_val_loss:.4f}")
+
+            test_loss = []
+            for batch in test_loader:
+                q_mes, desired_cartesian_pos, q_des, qd_des = batch
+                inputs = torch.cat((q_mes, desired_cartesian_pos), dim=1)
+                targets = torch.cat((q_des, qd_des), dim=1)
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                outputs = model(inputs)
+                loss = loss_fn(outputs, targets)
+                test_loss.append(loss.item())
+            avg_test_loss = sum(test_loss) / len(test_loss)
+            test_losses.append(avg_test_loss)
+
+            print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Test Loss: {avg_test_loss:.4f}")
             
             # Save the best model
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
+
+            if avg_test_loss < best_test_loss:
+                best_test_loss = avg_test_loss
                 torch.save(model.state_dict(), best_model_path)
-                print(f"Best model saved with validation loss: {best_val_loss:.4f}")
+                print(f"Best model saved with test loss: {best_test_loss:.4f}")
 
 
     print(f"\nTraining complete! Best validation loss: {best_val_loss:.4f}")
     print(f"Best model saved to '{best_model_path}'")
 
     # Plot loss curves
-    plot_loss_curves(train_losses, val_losses)
+    plot_loss_curves(train_losses, val_losses, test_losses)
 
 
     # Validation code here
 
-def evaluate_best_model(data_dir='./data/', model_path='part2_best_model.pth', batch_size=64, device=None):
+def evaluate_best_model(data_dir='./data/test_2/', model_path='part2_best_model.pth', batch_size=64, device=None):
     """
     评估已保存的 best model，返回每个输出维度的 MSE 和 R^2，以及整体 MSE / R^2。
 
@@ -243,4 +269,5 @@ def evaluate_best_model(data_dir='./data/', model_path='part2_best_model.pth', b
     return metrics
 
 if __name__ == "__main__":
+    train()
     evaluate_best_model()

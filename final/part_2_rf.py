@@ -65,6 +65,9 @@ def train():
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
 
+    test_data = P2_dataset(data_dir='./data/test/')
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+
     X_list, y_list = [], []
     for batch in train_loader:
         cart_pos, cart_des_pos, q_des, qd_des_clip = batch
@@ -86,8 +89,29 @@ def train():
 
     rf_model.fit(X_train, y_train)
 
-    X_test, y_test = [], []
+    X_val, y_val = [], []
     for batch in val_loader:
+        cart_pos, cart_des_pos, q_des, qd_des_clip = batch
+        input_tensor = torch.cat((cart_pos, cart_des_pos), dim=1)
+        target_tensor = torch.cat((q_des, qd_des_clip), dim=1)
+        X_val.append(input_tensor.numpy())
+        y_val.append(target_tensor.numpy())
+
+    X_val = np.concatenate(X_val, axis=0)
+    y_val = np.concatenate(y_val, axis=0)
+
+    y_pred = rf_model.predict(X_val)
+
+    # 计算 MSE / R² 等指标
+    from sklearn.metrics import mean_squared_error, r2_score
+    mse = mean_squared_error(y_val, y_pred)
+    r2 = r2_score(y_val, y_pred)
+    print(f"Validation MSE: {mse:.4f}, R²: {r2:.4f}")
+
+    # Evaluate on test data
+    print("\n=== Evaluating on Test Data ===")
+    X_test, y_test = [], []
+    for batch in test_loader:
         cart_pos, cart_des_pos, q_des, qd_des_clip = batch
         input_tensor = torch.cat((cart_pos, cart_des_pos), dim=1)
         target_tensor = torch.cat((q_des, qd_des_clip), dim=1)
@@ -97,13 +121,18 @@ def train():
     X_test = np.concatenate(X_test, axis=0)
     y_test = np.concatenate(y_test, axis=0)
 
-    y_pred = rf_model.predict(X_test)
+    y_test_pred = rf_model.predict(X_test)
 
-    # 计算 MSE / R² 等指标
-    from sklearn.metrics import mean_squared_error, r2_score
-    mse = mean_squared_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
-    print(f"Test MSE: {mse:.4f}, R²: {r2:.4f}")
+    # 计算 Test 指标
+    test_mse = mean_squared_error(y_test, y_test_pred)
+    test_r2 = r2_score(y_test, y_test_pred)
+    print(f"Test MSE: {test_mse:.4f}, R²: {test_r2:.4f}")
+
+    # 保存模型
+    import joblib
+    model_path = 'part2_rf_model.pkl'
+    joblib.dump(rf_model, model_path)
+    print(f"\nModel saved to {model_path}")
 
 
 if __name__ == "__main__":

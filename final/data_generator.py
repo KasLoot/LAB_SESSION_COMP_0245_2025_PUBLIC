@@ -12,13 +12,15 @@ from rollout_loader import load_rollouts
 
 from pathlib import Path
 
+# use differet seed to generate training and testing data. train_seed = 42, test_seed = 420, test_2_seed = 8
 np.random.seed(42)
 
 FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
-FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
+DATA_DIR = FINAL_DIR / "data" / "train_2"
+DATA_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
 
 
-PRINT_PLOTS = False  # Set to True to enable plotting
+PRINT_PLOTS = True  # Set to True to enable plotting
 RECORDING = True  # Set to True to enable data recording
 
 # downsample rate needs to be bigger than one (is how much I steps I skip when i downsample the data)
@@ -36,15 +38,15 @@ def get_downsample_rate():
         print("Please enter a valid integer.")
         return None
 
-def generate_data(num_poses=10, init_joint_angles=None):
+def generate_data(num_poses, init_joint_angles=None):
     list_of_desired_cartesian_positions = []
     list_of_desired_cartesian_orientations = []
     list_of_type_of_control = [] # "pos",  "ori" or "both"
     list_of_duration_per_desired_cartesian_positions = []
     list_of_initialjoint_positions = []  # if None, use default initial joint angles
     for _ in range(num_poses):
-        x = np.random.choice([np.random.uniform(0.3, 0.5), np.random.uniform(-0.5, -0.3)])
-        y = np.random.choice([np.random.uniform(0.4, 0.5), np.random.uniform(-0.5, -0.4)])
+        x = np.random.choice([np.random.uniform(0.2, 0.5), np.random.uniform(-0.5, -0.2)])
+        y = np.random.choice([np.random.uniform(0.2, 0.5), np.random.uniform(-0.5, -0.2)])
         # Third element: [0.1:0.6]
         z = np.random.uniform(0.1, 0.6)
         list_of_desired_cartesian_positions.append([x, y, z])
@@ -123,7 +125,7 @@ def main():
     # list_of_duration_per_desired_cartesian_positions = [3.0, 3.0, 3.0, 3.0] # in seconds
     # list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
 
-    list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions = generate_data(num_poses=10, init_joint_angles=init_joint_angles)
+    list_of_desired_cartesian_positions, list_of_desired_cartesian_orientations, list_of_type_of_control, list_of_duration_per_desired_cartesian_positions, list_of_initialjoint_positions = generate_data(num_poses=100, init_joint_angles=init_joint_angles)
 
     # Initialize data storage
     q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
@@ -144,7 +146,7 @@ def main():
             init_position = init_joint_angles
         else:
             init_position = list_of_initialjoint_positions[i]
-        diff_kin = CartesianDiffKin(dyn_model, controlled_frame_name, init_position, desired_cartesian_pos, np.zeros(3), desired_cartesian_ori, np.zeros(3), time_step, type_of_control, kp_pos, kp_ori, np.array(joint_vel_limits))
+        # diff_kin = CartesianDiffKin(dyn_model, controlled_frame_name, init_position, desired_cartesian_pos, np.zeros(3), desired_cartesian_ori, np.zeros(3), time_step, type_of_control, kp_pos, kp_ori, np.array(joint_vel_limits))
         steps = int(duration_per_desired_cartesian_pos/time_step)
 
         # reinitialize the robot to the initial position
@@ -164,6 +166,10 @@ def main():
             ori_d_des = [0.0, 0.0, 0.0]  # Desired angular velocity
             # Compute desired joint positions and velocities using Cartesian differential kinematics
             q_des, qd_des_clip = CartesianDiffKin(dyn_model,controlled_frame_name,q_mes, desired_cartesian_pos, pd_d, desired_cartesian_ori, ori_d_des, time_step, "pos",  kp_pos, kp_ori, np.array(joint_vel_limits))
+
+            if np.any(np.array(qd_des_clip) > np.array(joint_vel_limits)):
+                print("Warning: Desired joint velocity exceeds limits!")
+                exit()
             
             # Control command
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)
@@ -180,27 +186,27 @@ def main():
                 print("Exiting simulation.")
                 break
 
-            cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
-            print(f"Pose No.{i}, desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
-            print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
+            # cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
+            # print(f"Pose No.{i}, desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
+            # print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
 
-            if cart_distance_error < 0.01:
-                print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
-                # Optionally, you can break here if you want to stop when the position is reached
-                # break
+            # if cart_distance_error < 0.01:
+            #     print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
+            #     # Optionally, you can break here if you want to stop when the position is reached
+            #     # break
 
             
             # Conditional data recording
             if RECORDING:
-                q_mes_all.append(q_mes)
-                qd_mes_all.append(qd_mes)
-                q_d_all.append(q_des)
-                qd_d_all.append(qd_des_clip)
-                tau_mes_all.append(tau_mes)
-                cart_pos_all.append(cart_pos)
-                cart_ori_all.append(cart_ori)
-                desired_cartesian_pos_all.append(desired_cartesian_pos)
-                tau_cmd_all.append(tau_cmd)
+                q_mes_all.append(q_mes.copy())
+                qd_mes_all.append(qd_mes.copy())
+                q_d_all.append(q_des.copy())
+                qd_d_all.append(qd_des_clip.copy())
+                tau_mes_all.append(tau_mes.copy())
+                cart_pos_all.append(cart_pos.copy())
+                cart_ori_all.append(cart_ori.copy())
+                desired_cartesian_pos_all.append(desired_cartesian_pos.copy())
+                tau_cmd_all.append(tau_cmd.copy())
 
             # Time management
             time.sleep(time_step)  # Control loop timing
@@ -227,7 +233,7 @@ def main():
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
             # Save data to pickle file and for name use the current iteration number
-            filename = FINAL_DIR / f"data_{i}.pkl"
+            filename = DATA_DIR / f"data_{i}.pkl"
             with open(filename, 'wb') as f:
                 pickle.dump({
                     'time': time_array,
@@ -271,6 +277,18 @@ def main():
             plt.legend()
             plt.grid(True)
             plt.show()
+
+            # Plot desired joint velocities
+            plt.figure(figsize=(12, 6))
+            for joint_idx in range(len(qd_d_all_downsampled[0])):
+                joint_velocities = [qd[joint_idx] for qd in qd_d_all_downsampled]
+                plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Joint Velocities (rad/s)')
+            plt.title('Downsampled desired Joint Velocities')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
     
     
     
@@ -278,6 +296,6 @@ def main():
 if __name__ == '__main__':
     main()
     # test rollout loader
-    rls = load_rollouts(indices=[0,1,2,3], directory=FINAL_DIR)  # looks for ./data_1.pkl or ./1.pkl, up to 4
+    rls = load_rollouts(indices=[0,1,2,3], directory=DATA_DIR)  # looks for ./data_1.pkl or ./1.pkl, up to 4
     print(f"Loaded {len(rls)} rollouts")
     print("First rollout keys lengths:",len(rls[0].time),len(rls[0].q_mes_all),len(rls[0].qd_mes_all))

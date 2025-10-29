@@ -165,5 +165,75 @@ def train():
 
     # Validation code here
 
+def evaluate_best_model(data_dir='./data/', model_path='part1_best_model.pth', batch_size=64, device=None):
+    """
+    评估已保存的 best model，返回每个输出维度的 MSE 和 R^2，以及整体 MSE / R^2。
+    """
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # 加载数据集（全部数据用于评估）
+    dataset = P1_dataset(data_dir)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    # 构建模型并加载权重
+    model = P1_MLP(input_size=7, output_size=7)
+    state = torch.load(model_path, map_location='cpu')
+    model.load_state_dict(state)
+    model.to(torch.float64).to(device)
+    model.eval()
+
+    preds_list = []
+    targets_list = []
+    with torch.no_grad():
+        for batch in loader:
+            q_mes, q_des, tau_cmd = batch
+            inputs = (q_des - q_mes).to(device)
+            targets = tau_cmd.to(device)
+            outputs = model(inputs)
+            preds_list.append(outputs.cpu().numpy())
+            targets_list.append(targets.cpu().numpy())
+
+    preds = np.concatenate(preds_list, axis=0)
+    targets = np.concatenate(targets_list, axis=0)
+    errors = preds - targets
+
+    # 每维 MSE
+    mse_per_dim = np.mean(errors**2, axis=0)
+    # 整体 MSE（所有元素）
+    mse_overall = np.mean(errors**2)
+
+    # 每维 R^2
+    y_mean = np.mean(targets, axis=0)
+    ss_res = np.sum((targets - preds)**2, axis=0)
+    ss_tot = np.sum((targets - y_mean)**2, axis=0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        r2_per_dim = 1.0 - ss_res / ss_tot
+    r2_per_dim = np.where(ss_tot <= np.finfo(float).eps, 1.0, r2_per_dim)
+
+    # 整体 R^2（所有元素合并）
+    overall_ss_res = np.sum((targets - preds)**2)
+    overall_ss_tot = np.sum((targets - np.mean(targets))**2)
+    overall_r2 = 1.0 - overall_ss_res / overall_ss_tot if overall_ss_tot > np.finfo(float).eps else 1.0
+
+    # 打印简要结果
+    np.set_printoptions(precision=6, suppress=True)
+    print("Per-dimension MSE (len={}):".format(mse_per_dim.size))
+    print(mse_per_dim)
+    print("Per-dimension R^2:")
+    print(r2_per_dim)
+    print(f"Overall MSE: {mse_overall:.6e}")
+    print(f"Overall R^2: {overall_r2:.6f}")
+
+    metrics = {
+        "mse_per_dim": mse_per_dim,
+        "mse_overall": mse_overall,
+        "r2_per_dim": r2_per_dim,
+        "r2_overall": overall_r2,
+        "preds": preds,
+        "targets": targets,
+    }
+    return metrics
+
 if __name__ == "__main__":
-    train()
+    evaluate_best_model()

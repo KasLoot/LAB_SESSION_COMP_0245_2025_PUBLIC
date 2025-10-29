@@ -10,7 +10,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from rollout_loader import load_rollouts
 
-from part_2 import P1_MLP
+from part_2 import P2_MLP
 import torch
 
 from pathlib import Path
@@ -19,7 +19,7 @@ FINAL_DIR = Path(__file__).resolve().parent  # this is .../final
 FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
 
 
-PRINT_PLOTS = False  # Set to True to enable plotting
+PRINT_PLOTS = True  # Set to True to enable plotting
 RECORDING = True  # Set to True to enable data recording
 
 # downsample rate needs to be bigger than one (is how much I steps I skip when i downsample the data)
@@ -39,8 +39,8 @@ def get_downsample_rate():
 
 
 def model_prediction(q_mes, desired_cartesian_pos):
-    model = P1_MLP(input_size=10, output_size=14).to(torch.float64)
-    model.load_state_dict(torch.load('part1_best_model.pth'))
+    model = P2_MLP(input_size=10, output_size=14).to(torch.float64)
+    model.load_state_dict(torch.load('part2_best_model.pth'))
     model.eval()
     with torch.no_grad():
         input_tensor = torch.tensor(np.concatenate((q_mes, desired_cartesian_pos)), dtype=torch.float64)
@@ -125,7 +125,7 @@ def main():
     time_step = sim.GetTimeStep()
 
 
-    for i in range(len(list_of_desired_cartesian_positions)):
+    for i in range(1, len(list_of_desired_cartesian_positions)):
 
         desired_cartesian_pos = np.array(list_of_desired_cartesian_positions[i])
         desired_cartesian_ori = np.array(list_of_desired_cartesian_orientations[i])
@@ -175,16 +175,10 @@ def main():
                 print("Exiting simulation.")
                 break
 
-            # cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
-            # print(f"desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
-            # print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
+            cart_distance_error = np.linalg.norm(desired_cartesian_pos - cart_pos)
+            print(f"desired pos: {desired_cartesian_pos}, current pos: {cart_pos}")
+            print(f"Time: {current_time:.2f}s, Cartesian position error: {cart_distance_error:.4f}m")
 
-            # if cart_distance_error < 0.01:
-            #     print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
-            #     # Optionally, you can break here if you want to stop when the position is reached
-            #     # break
-
-            
             # Conditional data recording
             if RECORDING:
                 q_mes_all.append(q_mes)
@@ -192,11 +186,15 @@ def main():
                 q_d_all.append(q_des)
                 qd_d_all.append(qd_des_clip)
                 tau_mes_all.append(tau_mes)
-                cart_pos_all.append(cart_pos)
-                cart_ori_all.append(cart_ori)
+                cart_pos_all.append(cart_pos.copy())
+                cart_ori_all.append(cart_ori.copy())
                 desired_cartesian_pos_all.append(desired_cartesian_pos)
 
-            # Time management
+            if cart_distance_error < 1e-5:
+                print(f"Reached desired position at time {current_time:.2f}s with error {cart_distance_error:.4f}m")
+                # Optionally, you can break here if you want to stop when the position is reached
+                break
+
             time.sleep(time_step)  # Control loop timing
             current_time += time_step
             #print("Current time in seconds:", current_time)
@@ -219,50 +217,75 @@ def main():
 
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
-            # # Save data to pickle file and for name use the current iteration number
-            # filename = FINAL_DIR / f"data_{i}.pkl"
-            # with open(filename, 'wb') as f:
-            #     pickle.dump({
-            #         'time': time_array,
-            #         'q_mes_all': q_mes_all_downsampled,
-            #         'qd_mes_all': qd_mes_all_downsampled,
-            #         'q_d_all': q_d_all_downsampled,
-            #         'qd_d_all': qd_d_all_downsampled,
-            #         'tau_mes_all': tau_mes_all_downsampled,
-            #         'cart_pos_all': cart_pos_all_downsampled,
-            #         'cart_ori_all': cart_ori_all_downsampled,
-            #         'desired_cartesian_pos_all': desired_cartesian_pos_all_downsampled
-            #     }, f)
-            # print(f"Data saved to {filename}")
-
-            # Reinitialize data storage lists
+        # Reinitialize data storage lists
         q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, desired_cartesian_pos_all = [], [], [], [], [], [], [], []
 
         if PRINT_PLOTS:
-            print("Plotting downsampled data...")
-            # Plot joint positions
-            plt.figure(figsize=(12, 6))
-            for joint_idx in range(len(q_mes_all_downsampled[0])):
-                joint_positions = [q[joint_idx] for q in q_mes_all_downsampled]
-                plt.plot(time_array, joint_positions, label=f'Joint {joint_idx+1}')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Joint Positions (rad)')
-            plt.title('Downsampled Joint Positions')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
+            # print("Plotting downsampled data...")
+            # # Plot joint positions
+            # plt.figure(figsize=(12, 6))
+            # for joint_idx in range(len(q_mes_all_downsampled[0])):
+            #     joint_positions = [q[joint_idx] for q in q_mes_all_downsampled]
+            #     plt.plot(time_array, joint_positions, label=f'Joint {joint_idx+1}')
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Joint Positions (rad)')
+            # plt.title('Downsampled Joint Positions')
+            # plt.legend()
+            # plt.grid(True)
+            # plt.show()
 
-            # Plot joint velocities
-            plt.figure(figsize=(12, 6))
-            for joint_idx in range(len(qd_mes_all_downsampled[0])):
-                joint_velocities = [qd[joint_idx] for qd in qd_mes_all_downsampled]
-                plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Joint Velocities (rad/s)')
-            plt.title('Downsampled Joint Velocities')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
+            # # Plot joint velocities
+            # plt.figure(figsize=(12, 6))
+            # for joint_idx in range(len(qd_mes_all_downsampled[0])):
+            #     joint_velocities = [qd[joint_idx] for qd in qd_mes_all_downsampled]
+            #     plt.plot(time_array, joint_velocities, label=f'Joint {joint_idx+1}')
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Joint Velocities (rad/s)')
+            # plt.title('Downsampled Joint Velocities')
+            # plt.legend()
+            # plt.grid(True)
+            # plt.show()
+
+            actual_traj = np.array(cart_pos_all_downsampled)  # shape (N,3)
+            desired_traj = np.array(desired_cartesian_pos_all_downsampled)  # shape (N,3) or (N,)
+
+            if actual_traj.size > 0 and desired_traj.size > 0:
+                fig = plt.figure(figsize=(8, 8))
+                ax = fig.add_subplot(111, projection='3d')
+
+                # plot actual trajectory line
+                ax.plot(actual_traj[:, 0], actual_traj[:, 1], actual_traj[:, 2],
+                        label='Actual trajectory', color='tab:blue', linewidth=2)
+
+                # mark start and end of actual trajectory
+                start = actual_traj[0]
+                end = actual_traj[-1]
+                ax.scatter(start[0], start[1], start[2], color='green', marker='o', s=80, label='Start')
+                ax.scatter(end[0], end[1], end[2], color='red', marker='o', s=80, label='End')
+
+                # choose the final desired point to annotate and compute final distance
+                final_desired = desired_traj[-1]
+                ax.scatter(final_desired[0], final_desired[1], final_desired[2],
+                            color='purple', marker='*', s=140, label='Desired')
+
+                final_distance = np.linalg.norm(end - final_desired)
+                title_str = f"3D Trajectory for Desired Point — Final distance: {final_distance:.4f} m"
+                ax.set_title(title_str)
+                ax.set_xlabel('X (m)')
+                ax.set_ylabel('Y (m)')
+                ax.set_zlabel('Z (m)')
+                ax.legend()
+                ax.grid(True)
+
+                # annotate positions
+                ax.text(start[0], start[1], start[2], ' Start', color='green')
+                ax.text(end[0], end[1], end[2], ' End', color='red')
+                ax.text(final_desired[0], final_desired[1], final_desired[2], ' Desired', color='purple')
+
+                # save_path = FINAL_DIR / f"trajectory_3d_point{i}.png"
+                # plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                # print(f"3D trajectory saved to '{save_path}'")
+                plt.show()
     
     
     
@@ -270,6 +293,6 @@ def main():
 if __name__ == '__main__':
     main()
     # test rollout loader
-    rls = load_rollouts(indices=[0,1,2,3], directory=FINAL_DIR)  # looks for ./data_1.pkl or ./1.pkl, up to 4
-    print(f"Loaded {len(rls)} rollouts")
-    print("First rollout keys lengths:",len(rls[0].time),len(rls[0].q_mes_all),len(rls[0].qd_mes_all))
+    # rls = load_rollouts(indices=[0,1,2,3], directory=FINAL_DIR)  # looks for ./data_1.pkl or ./1.pkl, up to 4
+    # print(f"Loaded {len(rls)} rollouts")
+    # print("First rollout keys lengths:",len(rls[0].time),len(rls[0].q_mes_all),len(rls[0].qd_mes_all))

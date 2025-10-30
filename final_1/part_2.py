@@ -10,6 +10,8 @@ from tqdm import tqdm
 
 torch.manual_seed(10)
 
+SAVE_FLAG = True
+
 
 class P2_dataset(Dataset):
     def __init__(self, data_dir):
@@ -61,6 +63,22 @@ class P2_dataset(Dataset):
 class P2_MLP(nn.Module):
     def __init__(self, input_size=10, output_size=14):
         super(P2_MLP, self).__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, output_size)
+        )
+
+    def forward(self, x):
+        return self.mlp(x)
+    
+class P2_MLP_Previous(nn.Module):
+    def __init__(self, input_size=10, output_size=14):
+        super(P2_MLP_Previous, self).__init__()
         self.mlp = nn.Sequential(
             nn.Linear(input_size, 256),
             nn.LeakyReLU(),
@@ -120,6 +138,9 @@ def train():
     loss_fn = nn.MSELoss()
     model = P2_MLP(input_size=10, output_size=14)
     model.to(torch.float64).to(device)
+    model_param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model initialized with {model_param_count} trainable parameters.")
+
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # Lists to store losses for plotting
@@ -128,7 +149,7 @@ def train():
     test_losses = []
     best_val_loss = float('inf')
     best_test_loss = float('inf')
-    best_model_path = 'part2_best_model_with_stop.pth'
+    best_model_path = 'part2_best_model_with_stop_encoder_design.pth'
 
     for epoch in range(num_epochs):
         model.train()
@@ -185,15 +206,16 @@ def train():
 
             if avg_test_loss < best_test_loss:
                 best_test_loss = avg_test_loss
-                torch.save(model.state_dict(), best_model_path)
-                print(f"Best model saved with test loss: {best_test_loss:.4f}")
+                if SAVE_FLAG:
+                    torch.save(model.state_dict(), best_model_path)
+                    print(f"Best model saved with test loss: {best_test_loss:.4f}")
 
 
     print(f"\nTraining complete! Best validation loss: {best_val_loss:.4f}")
     print(f"Best model saved to '{best_model_path}'")
 
     # Plot loss curves
-    plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_with_stop_loss_curves.png')
+    plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_with_stop_encoder_design_loss_curves.png')
 
 
     # Validation code here
@@ -273,4 +295,4 @@ def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
 
 if __name__ == "__main__":
     train()
-    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_best_model_with_stop.pth')
+    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_encoder_design_best_model_with_stop.pth')

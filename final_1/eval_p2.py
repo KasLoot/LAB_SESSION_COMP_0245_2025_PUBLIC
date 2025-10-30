@@ -23,7 +23,7 @@ from pathlib import Path
 from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl
 
 # Import the trained model
-from part_2 import P2_MLP
+from part_2 import P2_MLP, P2_MLP_Previous
 
 
 # ============================================================================
@@ -35,8 +35,8 @@ np.random.seed(100)  # Using test seed for evaluation
 
 # Directories
 FINAL_DIR = Path(__file__).resolve().parent
-MODEL_PATH = FINAL_DIR / "part2_best_model_with_stop.pth"
-RESULTS_DIR = FINAL_DIR / "evaluation_results_with_stop_data"
+MODEL_PATH = FINAL_DIR / "part2_best_model_no_stop.pth"
+RESULTS_DIR = FINAL_DIR / "evaluation_results_no_stop_data"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Simulation parameters
@@ -44,7 +44,7 @@ NUM_TEST_POSES = 10  # Number of different target positions to test
 DURATION_PER_POSE = 5.0  # Duration in seconds for each pose
 
 # Visualization parameters
-SHOW_INTERACTIVE_3D = True  # Set to True to show interactive 3D plots (closes window to continue)
+SHOW_INTERACTIVE_3D = False  # Set to True to show interactive 3D plots (closes window to continue)
 
 
 # ============================================================================
@@ -92,7 +92,7 @@ def load_trained_model(model_path, device):
     Returns:
         P2_MLP: Loaded model in evaluation mode
     """
-    model = P2_MLP(input_size=10, output_size=14)
+    model = P2_MLP_Previous(input_size=10, output_size=14)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(torch.float64).to(device)
     model.eval()
@@ -405,8 +405,8 @@ def plot_3d_trajectory(trajectory_data, pose_idx, save_dir, interactive=True):
     z_max = max(0.1, all_z.max())  # Z should always be positive, min 0.1 for visibility
     
     # Set limits with origin at (0, 0, 0)
-    ax.set_xlim(0, x_max * 1.1)
-    ax.set_ylim(0, y_max * 1.1)
+    ax.set_xlim(-x_max * 1.10, x_max * 1.1)
+    ax.set_ylim(-y_max * 1.1, y_max * 1.1)
     ax.set_zlim(0, z_max * 1.1)
     
     # Adjust viewing angle

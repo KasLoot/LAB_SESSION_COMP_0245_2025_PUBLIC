@@ -21,7 +21,7 @@ FINAL_DIR.mkdir(parents=True, exist_ok=True)  # safe if it already exists
 PRINT_PLOTS = False  # Set to True to enable plotting
 RECORDING = True  # Set to True to enable data recording
 
-data_category = "train"  # "train" or "test" or "simulation"
+data_category = "test"  # "train" or "test" or "simulation"
 
 if data_category == "train":
     FINAL_DIR = FINAL_DIR / "data" / "train"

@@ -35,8 +35,8 @@ np.random.seed(100)  # Using test seed for evaluation
 
 # Directories
 FINAL_DIR = Path(__file__).resolve().parent
-MODEL_PATH = FINAL_DIR / "part2_best_model.pth"
-RESULTS_DIR = FINAL_DIR / "evaluation_results"
+MODEL_PATH = FINAL_DIR / "part2_best_model_v2.pth"
+RESULTS_DIR = FINAL_DIR / "evaluation_results_with_stop_data"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Simulation parameters

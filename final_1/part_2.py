@@ -72,7 +72,7 @@ class P2_MLP(nn.Module):
         return self.mlp(x)
 
 
-def plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_loss_curves.png'):
+def plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_v2_loss_curves.png'):
     """
     Plot and save training, validation, and test loss curves.
     
@@ -125,7 +125,7 @@ def train():
     test_losses = []
     best_val_loss = float('inf')
     best_test_loss = float('inf')
-    best_model_path = 'part2_best_model.pth'
+    best_model_path = 'part2_best_model_v2.pth'
 
     for epoch in range(num_epochs):
         model.train()

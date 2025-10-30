@@ -35,7 +35,7 @@ np.random.seed(100)  # Using test seed for evaluation
 
 # Directories
 FINAL_DIR = Path(__file__).resolve().parent
-MODEL_PATH = FINAL_DIR / "part2_best_model_v2.pth"
+MODEL_PATH = FINAL_DIR / "part2_best_model_with_stop.pth"
 RESULTS_DIR = FINAL_DIR / "evaluation_results_with_stop_data"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -132,7 +132,7 @@ def predict_with_model(model, q_mes, desired_cartesian_pos, device):
     return q_des, qd_des
 
 
-def simulate_single_trajectory(sim, dyn_model, model, device, 
+def simulate_single_trajectory(sim: pb.SimInterface, dyn_model, model, device, 
                                desired_cartesian_pos, init_joint_angles,
                                duration, controlled_frame_name,
                                kp=1000, kd=100):
@@ -156,15 +156,11 @@ def simulate_single_trajectory(sim, dyn_model, model, device,
     """
     # Reset robot to initial position
     sim.ResetPose()
-    
+    if init_joint_angles is not None:
+        sim.SetjointPosition(init_joint_angles)
     # Wait for physics to settle after reset
     time.sleep(0.1)
     
-    # Explicitly set joint positions to initial configuration
-    sim.SetjointPosition(init_joint_angles)
-    
-    # Wait for 1 second after reset to stabilize
-    time.sleep(1.0)
     
     # Storage for trajectory data
     trajectory_data = {
@@ -409,8 +405,8 @@ def plot_3d_trajectory(trajectory_data, pose_idx, save_dir, interactive=True):
     z_max = max(0.1, all_z.max())  # Z should always be positive, min 0.1 for visibility
     
     # Set limits with origin at (0, 0, 0)
-    ax.set_xlim(-x_max * 1.1, x_max * 1.1)
-    ax.set_ylim(-y_max * 1.1, y_max * 1.1)
+    ax.set_xlim(0, x_max * 1.1)
+    ax.set_ylim(0, y_max * 1.1)
     ax.set_zlim(0, z_max * 1.1)
     
     # Adjust viewing angle

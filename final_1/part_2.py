@@ -18,6 +18,7 @@ class P2_dataset(Dataset):
         self.desired_cartesian_pos_all = []
         self.q_des_all = []
         self.qd_des_all = []
+        self.num_trajectories = 0
         for files in os.listdir(data_dir):
             if files.endswith('.pt'):
                 file_path = os.path.join(data_dir, files)
@@ -26,12 +27,14 @@ class P2_dataset(Dataset):
                 self.desired_cartesian_pos_all.append(data['final_cartesian_pos'])
                 self.q_des_all.append(data['q_d_all'])
                 self.qd_des_all.append(data['qd_d_all'])
+                self.num_trajectories += 1
 
         self.q_mes_all = torch.tensor(np.concatenate(self.q_mes_all, axis=0), dtype=torch.float64)
         self.desired_cartesian_pos_all = torch.tensor(np.concatenate(self.desired_cartesian_pos_all, axis=0), dtype=torch.float64)
         self.q_des_all = torch.tensor(np.concatenate(self.q_des_all, axis=0), dtype=torch.float64)
         self.qd_des_all = torch.tensor(np.concatenate(self.qd_des_all, axis=0), dtype=torch.float64)
 
+        print(f"Loaded data from {self.num_trajectories} trajectories.")
         print(f"Dataset initialized with {self.q_mes_all.shape[0]} samples.")
         print(f"q_mes_all shape: {self.q_mes_all.shape}")
         print(f"desired_cartesian_pos_all shape: {self.desired_cartesian_pos_all.shape}")
@@ -72,7 +75,7 @@ class P2_MLP(nn.Module):
         return self.mlp(x)
 
 
-def plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_v2_loss_curves.png'):
+def plot_loss_curves(train_losses, val_losses, test_losses, save_path):
     """
     Plot and save training, validation, and test loss curves.
     
@@ -105,13 +108,13 @@ def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    dataset = P2_dataset(data_dir='./data/train/')
+    dataset = P2_dataset(data_dir='./data/train_with_stop_data/')
 
     train_data, val_data = torch.utils.data.random_split(dataset, [int(0.8*len(dataset)), len(dataset) - int(0.8*len(dataset))])
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
 
-    test_dataset = P2_dataset(data_dir='./data/test/')
+    test_dataset = P2_dataset(data_dir='./data/test_with_stop_data/')
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     loss_fn = nn.MSELoss()
@@ -125,7 +128,7 @@ def train():
     test_losses = []
     best_val_loss = float('inf')
     best_test_loss = float('inf')
-    best_model_path = 'part2_best_model_v2.pth'
+    best_model_path = 'part2_best_model_with_stop.pth'
 
     for epoch in range(num_epochs):
         model.train()
@@ -190,12 +193,12 @@ def train():
     print(f"Best model saved to '{best_model_path}'")
 
     # Plot loss curves
-    plot_loss_curves(train_losses, val_losses, test_losses)
+    plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_with_stop_loss_curves.png')
 
 
     # Validation code here
 
-def evaluate_best_model(data_dir='./data/test/', model_path='part2_best_model.pth', batch_size=64, device=None):
+def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
     """
     评估已保存的 best model，返回每个输出维度的 MSE 和 R^2，以及整体 MSE / R^2。
 
@@ -270,4 +273,4 @@ def evaluate_best_model(data_dir='./data/test/', model_path='part2_best_model.pt
 
 if __name__ == "__main__":
     train()
-    evaluate_best_model()
+    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_best_model_with_stop.pth')

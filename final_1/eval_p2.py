@@ -23,7 +23,7 @@ from pathlib import Path
 from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl
 
 # Import the trained model
-from part_2 import P2_MLP, P2_MLP_Previous
+from part_2 import P2_MLP, P2_MLP_None_Encoder
 
 
 # ============================================================================
@@ -35,8 +35,8 @@ np.random.seed(100)  # Using test seed for evaluation
 
 # Directories
 FINAL_DIR = Path(__file__).resolve().parent
-MODEL_PATH = FINAL_DIR / "part2_best_model_no_stop.pth"
-RESULTS_DIR = FINAL_DIR / "evaluation_results_no_stop_data"
+MODEL_PATH = FINAL_DIR / "part2_non_encoder_with_stop.pth"
+RESULTS_DIR = FINAL_DIR / "P2_MLP_None_Encoder_Evaluation_Results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Simulation parameters
@@ -44,7 +44,7 @@ NUM_TEST_POSES = 10  # Number of different target positions to test
 DURATION_PER_POSE = 5.0  # Duration in seconds for each pose
 
 # Visualization parameters
-SHOW_INTERACTIVE_3D = False  # Set to True to show interactive 3D plots (closes window to continue)
+SHOW_INTERACTIVE_3D = True  # Set to True to show interactive 3D plots (closes window to continue)
 
 
 # ============================================================================
@@ -92,7 +92,7 @@ def load_trained_model(model_path, device):
     Returns:
         P2_MLP: Loaded model in evaluation mode
     """
-    model = P2_MLP_Previous(input_size=10, output_size=14)
+    model = P2_MLP_None_Encoder(input_size=10, output_size=14)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(torch.float64).to(device)
     model.eval()
@@ -134,7 +134,7 @@ def predict_with_model(model, q_mes, desired_cartesian_pos, device):
 
 def simulate_single_trajectory(sim: pb.SimInterface, dyn_model, model, device, 
                                desired_cartesian_pos, init_joint_angles,
-                               duration, controlled_frame_name,
+                               duration, controlled_frame_name, trajectory_data,
                                kp=1000, kd=100):
     """
     Simulate robot trajectory for a single target position using the trained model.
@@ -163,17 +163,17 @@ def simulate_single_trajectory(sim: pb.SimInterface, dyn_model, model, device,
     
     
     # Storage for trajectory data
-    trajectory_data = {
-        'time': [],
-        'q_mes': [],           # Measured joint positions
-        'qd_mes': [],          # Measured joint velocities
-        'q_des_model': [],     # Model-predicted desired joint positions
-        'qd_des_model': [],    # Model-predicted desired joint velocities
-        'cart_pos': [],        # Actual Cartesian positions
-        'cart_ori': [],        # Actual Cartesian orientations
-        'tau_cmd': [],         # Commanded torques
-        'desired_cart_pos': desired_cartesian_pos
-    }
+    # trajectory_data = {
+    #     'time': [],
+    #     'q_mes': [],           # Measured joint positions
+    #     'qd_mes': [],          # Measured joint velocities
+    #     'q_des_model': [],     # Model-predicted desired joint positions
+    #     'qd_des_model': [],    # Model-predicted desired joint velocities
+    #     'cart_pos': [],        # Actual Cartesian positions
+    #     'cart_ori': [],        # Actual Cartesian orientations
+    #     'tau_cmd': [],         # Commanded torques
+    #     'desired_cart_pos': desired_cartesian_pos
+    # }
     
     # Simulation parameters
     time_step = sim.GetTimeStep()
@@ -182,19 +182,19 @@ def simulate_single_trajectory(sim: pb.SimInterface, dyn_model, model, device,
     
     current_time = 0.0
     
-    # Record initial state (at t=0, before any control is applied)
-    q_mes_init = sim.GetMotorAngles(0)
-    qd_mes_init = sim.GetMotorVelocities(0)
-    cart_pos_init, cart_ori_init = dyn_model.ComputeFK(q_mes_init, controlled_frame_name)
+    # # Record initial state (at t=0, before any control is applied)
+    # q_mes_init = sim.GetMotorAngles(0)
+    # qd_mes_init = sim.GetMotorVelocities(0)
+    # cart_pos_init, cart_ori_init = dyn_model.ComputeFK(q_mes_init, controlled_frame_name)
     
-    trajectory_data['time'].append(0.0)
-    trajectory_data['q_mes'].append(q_mes_init.copy())
-    trajectory_data['qd_mes'].append(qd_mes_init.copy())
-    trajectory_data['q_des_model'].append(q_mes_init.copy())  # No control yet
-    trajectory_data['qd_des_model'].append(qd_mes_init.copy())  # No control yet
-    trajectory_data['cart_pos'].append(cart_pos_init.copy())
-    trajectory_data['cart_ori'].append(cart_ori_init.copy())
-    trajectory_data['tau_cmd'].append(np.zeros(7))  # No torque at start
+    # trajectory_data['time'].append(0.0)
+    # trajectory_data['q_mes'].append(q_mes_init.copy())
+    # trajectory_data['qd_mes'].append(qd_mes_init.copy())
+    # trajectory_data['q_des_model'].append(q_mes_init.copy())  # No control yet
+    # trajectory_data['qd_des_model'].append(qd_mes_init.copy())  # No control yet
+    # trajectory_data['cart_pos'].append(cart_pos_init.copy())
+    # trajectory_data['cart_ori'].append(cart_ori_init.copy())
+    # trajectory_data['tau_cmd'].append(np.zeros(7))  # No torque at start
     
     # Simulation loop
     for t in range(steps):
@@ -558,6 +558,36 @@ def main():
     
     for i in range(NUM_TEST_POSES):
         print(f"Evaluating Pose {i+1}/{NUM_TEST_POSES}...")
+
+        trajectory_data = {
+        'time': [0.0],
+        'q_mes': [[0.0, 1.0323, 0.0, 0.8247, 0.0, 1.57, 0.0]],           # Measured joint positions
+        'qd_mes': [[0., 0., 0., 0., 0., 0., 0.]],          # Measured joint velocities
+        'q_des_model': [],     # Model-predicted desired joint positions
+        'qd_des_model': [],    # Model-predicted desired joint velocities
+        'cart_pos': [[4.34899498e-01, 4.83688696e-18, 8.80952393e-01]],        # Actual Cartesian positions
+        'cart_ori': [[[ 2.06891190e-01,  1.64001623e-16,  9.78363959e-01],
+       [ 8.44568339e-17, -1.00000000e+00,  1.49768649e-16],
+       [ 9.78363959e-01,  5.16437082e-17, -2.06891190e-01]]],     # Actual Cartesian orientations
+        'tau_cmd': [],         # Commanded torques
+        'desired_cart_pos': np.array(desired_positions[i])
+        }
+        
+        # Record initial state (at t=0, before any control is applied)
+        q_mes_init = sim.GetMotorAngles(0)
+        qd_mes_init = sim.GetMotorVelocities(0)
+        cart_pos_init, cart_ori_init = dyn_model.ComputeFK(q_mes_init, controlled_frame_name)
+        
+        # trajectory_data['time'].append(0.0)
+        # trajectory_data['q_mes'].append(q_mes_init.copy())
+        # trajectory_data['qd_mes'].append(qd_mes_init.copy())
+        trajectory_data['q_des_model'].append(q_mes_init.copy())  # No control yet
+        trajectory_data['qd_des_model'].append(qd_mes_init.copy())  # No control yet
+        # trajectory_data['cart_pos'].append(cart_pos_init.copy())
+        # trajectory_data['cart_ori'].append(cart_ori_init.copy())
+        trajectory_data['tau_cmd'].append(np.zeros(7))  # No torque at start
+
+        print(trajectory_data)
         
         # Run simulation
         trajectory_data = simulate_single_trajectory(
@@ -567,6 +597,7 @@ def main():
             device=device,
             desired_cartesian_pos=np.array(desired_positions[i]),
             init_joint_angles=init_joint_angles,
+            trajectory_data=trajectory_data,
             duration=DURATION_PER_POSE,
             controlled_frame_name=controlled_frame_name
         )

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 # Import the MLP model from part_2.py
-from part_2 import P2_MLP, P2_MLP_Previous
+from part_2 import P2_MLP, P2_MLP_None_Encoder
 
 FINAL_DIR = Path(__file__).resolve().parent
 
@@ -16,9 +16,8 @@ FINAL_DIR = Path(__file__).resolve().parent
 def evaluate_model_in_simulation(
     model_path,
     num_test_poses=10,
-    model_class=P2_MLP_Previous,
+    model_class=P2_MLP_None_Encoder,
     successive_time_series_error_sigma=1.0,
-    visualize=False,
     seed=100
 ):
     """
@@ -213,112 +212,9 @@ def evaluate_model_in_simulation(
     print(f"  Std:   {results['std_final_distance']:.6f}")
     print("="*60)
     
-    # Visualize if requested
-    if visualize:
-        visualize_results(results)
     
     return results
 
-
-def visualize_results(results):
-    """
-    Visualize evaluation results including error distributions and sample trajectories.
-    """
-    trajectories = results['trajectories']
-    
-    # Plot 1: Error distribution
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    axes[0].hist(results['successive_errors'], bins=20, edgecolor='black', alpha=0.7)
-    axes[0].axvline(results['mean_successive_error'], color='red', linestyle='--', 
-                    label=f'Mean: {results["mean_successive_error"]:.4f}')
-    axes[0].set_xlabel('Successive Time Series Error')
-    axes[0].set_ylabel('Frequency')
-    axes[0].set_title('Distribution of Successive Time Series Error')
-    axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
-    
-    axes[1].hist(results['final_distances'], bins=20, edgecolor='black', alpha=0.7)
-    axes[1].axvline(results['mean_final_distance'], color='red', linestyle='--',
-                    label=f'Mean: {results["mean_final_distance"]:.4f}')
-    axes[1].set_xlabel('Final Distance to Target (m)')
-    axes[1].set_ylabel('Frequency')
-    axes[1].set_title('Distribution of Final Distance to Target')
-    axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(FINAL_DIR / 'evaluation_error_distributions.png', dpi=300, bbox_inches='tight')
-    print(f"Saved error distribution plot to {FINAL_DIR / 'evaluation_error_distributions.png'}")
-    plt.show()
-    
-    # Plot 2: Sample trajectories (best, median, worst)
-    sorted_indices = np.argsort(results['successive_errors'])
-    best_idx = sorted_indices[0]
-    median_idx = sorted_indices[len(sorted_indices) // 2]
-    worst_idx = sorted_indices[-1]
-    
-    fig = plt.figure(figsize=(15, 5))
-    
-    for plot_idx, (traj_idx, title) in enumerate([
-        (best_idx, 'Best (Lowest Error)'),
-        (median_idx, 'Median Error'),
-        (worst_idx, 'Worst (Highest Error)')
-    ]):
-        traj = trajectories[traj_idx]
-        ax = fig.add_subplot(1, 3, plot_idx + 1, projection='3d')
-        
-        # Plot trajectory
-        cart_pos = traj['cart_pos']
-        ax.plot(cart_pos[:, 0], cart_pos[:, 1], cart_pos[:, 2], 
-                'b-', linewidth=2, label='Trajectory')
-        
-        # Plot start and end points
-        ax.scatter(cart_pos[0, 0], cart_pos[0, 1], cart_pos[0, 2], 
-                  c='green', s=100, marker='o', label='Start')
-        ax.scatter(cart_pos[-1, 0], cart_pos[-1, 1], cart_pos[-1, 2],
-                  c='blue', s=100, marker='x', label='End')
-        
-        # Plot target
-        target = traj['target']
-        ax.scatter(target[0], target[1], target[2],
-                  c='red', s=100, marker='*', label='Target')
-        
-        ax.set_xlabel('X (m)')
-        ax.set_ylabel('Y (m)')
-        ax.set_zlabel('Z (m)')
-        ax.set_title(f"{title}\nError: {traj['successive_error']:.4f}\n"
-                    f"Final Dist: {traj['final_distance']:.6f}m")
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(FINAL_DIR / 'evaluation_sample_trajectories.png', dpi=300, bbox_inches='tight')
-    print(f"Saved trajectory plot to {FINAL_DIR / 'evaluation_sample_trajectories.png'}")
-    plt.show()
-    
-    # Plot 3: Distance to target over time for sample trajectories
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-    
-    for plot_idx, (traj_idx, title) in enumerate([
-        (best_idx, 'Best'),
-        (median_idx, 'Median'),
-        (worst_idx, 'Worst')
-    ]):
-        traj = trajectories[traj_idx]
-        distances = np.linalg.norm(traj['cart_pos'] - traj['target'], axis=1)
-        
-        axes[plot_idx].plot(traj['time'], distances, 'b-', linewidth=2)
-        axes[plot_idx].set_xlabel('Time (s)')
-        axes[plot_idx].set_ylabel('Distance to Target (m)')
-        axes[plot_idx].set_title(f"{title} Trajectory")
-        axes[plot_idx].grid(True, alpha=0.3)
-        axes[plot_idx].set_yscale('log')
-    
-    plt.tight_layout()
-    plt.savefig(FINAL_DIR / 'evaluation_distance_over_time.png', dpi=300, bbox_inches='tight')
-    print(f"Saved distance-over-time plot to {FINAL_DIR / 'evaluation_distance_over_time.png'}")
-    plt.show()
 
 
 def compare_models(model_paths, model_names, num_test_poses=10, sigma=1.0):
@@ -342,56 +238,23 @@ def compare_models(model_paths, model_names, num_test_poses=10, sigma=1.0):
             model_path=model_path,
             num_test_poses=num_test_poses,
             successive_time_series_error_sigma=sigma,
-            visualize=False
         )
         results['model_name'] = model_name
         results_list.append(results)
-    
-    # Create comparison plots
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Plot 1: Mean successive errors
-    means = [r['mean_successive_error'] for r in results_list]
-    stds = [r['std_successive_error'] for r in results_list]
-    x_pos = np.arange(len(model_names))
-    
-    axes[0].bar(x_pos, means, yerr=stds, capsize=5, alpha=0.7, edgecolor='black')
-    axes[0].set_xticks(x_pos)
-    axes[0].set_xticklabels(model_names, rotation=45, ha='right')
-    axes[0].set_ylabel('Successive Time Series Error')
-    axes[0].set_title('Model Comparison: Successive Error')
-    axes[0].grid(True, alpha=0.3, axis='y')
-    
-    # Plot 2: Mean final distances
-    means_dist = [r['mean_final_distance'] for r in results_list]
-    stds_dist = [r['std_final_distance'] for r in results_list]
-    
-    axes[1].bar(x_pos, means_dist, yerr=stds_dist, capsize=5, alpha=0.7, edgecolor='black')
-    axes[1].set_xticks(x_pos)
-    axes[1].set_xticklabels(model_names, rotation=45, ha='right')
-    axes[1].set_ylabel('Final Distance (m)')
-    axes[1].set_title('Model Comparison: Final Distance to Target')
-    axes[1].grid(True, alpha=0.3, axis='y')
-    
-    plt.tight_layout()
-    plt.savefig(FINAL_DIR / 'model_comparison.png', dpi=300, bbox_inches='tight')
-    print(f"\nSaved comparison plot to {FINAL_DIR / 'model_comparison.png'}")
-    plt.show()
     
     return results_list
 
 
 if __name__ == "__main__":
     # Example usage: Evaluate a single model
-    model_path = FINAL_DIR / "part2_best_model_with_stop_encoder_design.pth"
+    model_path = FINAL_DIR / "part2_non_encoder_with_stop.pth"
     
     if model_path.exists():
         results = evaluate_model_in_simulation(
             model_path=str(model_path),
             num_test_poses=10,
-            model_class=P2_MLP,  # Change to P2_MLP if using the newer model
+            model_class=P2_MLP_None_Encoder,  # Change to P2_MLP if using the newer model
             successive_time_series_error_sigma=0.95,
-            visualize=True,
             seed=100
         )
         

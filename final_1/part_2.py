@@ -60,9 +60,9 @@ class P2_dataset(Dataset):
         return self.q_mes_all[idx], self.desired_cartesian_pos_all[idx], self.q_des_all[idx], self.qd_des_all[idx]
 
 
-class P2_MLP(nn.Module):
+class P2_MLP_Encoder(nn.Module):
     def __init__(self, input_size=10, output_size=14):
-        super(P2_MLP, self).__init__()
+        super(P2_MLP_Encoder, self).__init__()
         self.mlp = nn.Sequential(
             nn.Linear(input_size, 256),
             nn.LeakyReLU(),
@@ -76,21 +76,22 @@ class P2_MLP(nn.Module):
     def forward(self, x):
         return self.mlp(x)
     
-class P2_MLP_Previous(nn.Module):
+class P2_MLP_None_Encoder(nn.Module):
     def __init__(self, input_size=10, output_size=14):
-        super(P2_MLP_Previous, self).__init__()
+        super(P2_MLP_None_Encoder, self).__init__()
         self.mlp = nn.Sequential(
             nn.Linear(input_size, 256),
             nn.LeakyReLU(),
             nn.Linear(256, 256),
             nn.LeakyReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(256, 256),
             nn.LeakyReLU(),
-            nn.Linear(128, output_size)
+            nn.Linear(256, output_size)
         )
 
     def forward(self, x):
         return self.mlp(x)
+
 
 
 def plot_loss_curves(train_losses, val_losses, test_losses, save_path):
@@ -136,7 +137,7 @@ def train():
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     loss_fn = nn.MSELoss()
-    model = P2_MLP(input_size=10, output_size=14)
+    model = P2_MLP_Encoder(input_size=10, output_size=14)
     model.to(torch.float64).to(device)
     model_param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model initialized with {model_param_count} trainable parameters.")
@@ -149,7 +150,7 @@ def train():
     test_losses = []
     best_val_loss = float('inf')
     best_test_loss = float('inf')
-    best_model_path = 'part2_best_model_with_stop_encoder_design.pth'
+    best_model_path = 'part2_non_encoder_with_stop.pth'
 
     for epoch in range(num_epochs):
         model.train()
@@ -215,7 +216,7 @@ def train():
     print(f"Best model saved to '{best_model_path}'")
 
     # Plot loss curves
-    plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_with_stop_encoder_design_loss_curves.png')
+    plot_loss_curves(train_losses, val_losses, test_losses, save_path='part2_non_encoder_small_with_stop_loss_curves.png')
 
 
     # Validation code here
@@ -235,7 +236,7 @@ def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     # 构建模型并加载权重
-    model = P2_MLP_Previous(input_size=10, output_size=14)
+    model = P2_MLP_Encoder(input_size=10, output_size=14)
     state = torch.load(model_path, map_location=device)
     model.load_state_dict(state)
     model.to(torch.float64).to(device)
@@ -301,4 +302,4 @@ def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
 
 if __name__ == "__main__":
     # train()
-    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_best_model_no_stop.pth')
+    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_non_encoder_with_stop.pth')

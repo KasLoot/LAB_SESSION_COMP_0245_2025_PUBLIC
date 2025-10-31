@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 # Import the MLP model from part_2.py
-from part_2 import P2_MLP, P2_MLP_None_Encoder
+from part_2 import P2_MLP_Encoder, P2_MLP_None_Encoder
 
 FINAL_DIR = Path(__file__).resolve().parent
 
@@ -18,7 +18,7 @@ def evaluate_model_in_simulation(
     num_test_poses=10,
     model_class=P2_MLP_None_Encoder,
     successive_time_series_error_sigma=1.0,
-    seed=100
+    seed=78
 ):
     """
     Evaluate a trained MLP model in the simulation environment.
@@ -217,7 +217,7 @@ def evaluate_model_in_simulation(
 
 
 
-def compare_models(model_paths, model_names, num_test_poses=10, sigma=1.0):
+def compare_models(model_paths, model_classes, num_test_poses=10, sigma=1.0):
     """
     Compare multiple models using the same test poses.
     
@@ -229,17 +229,18 @@ def compare_models(model_paths, model_names, num_test_poses=10, sigma=1.0):
     """
     results_list = []
     
-    for model_path, model_name in zip(model_paths, model_names):
+    for model_path, model_class in zip(model_paths, model_classes):
         print(f"\n{'='*60}")
-        print(f"Evaluating model: {model_name}")
+        print(f"Evaluating model: {model_class}")
         print(f"{'='*60}")
         
         results = evaluate_model_in_simulation(
             model_path=model_path,
             num_test_poses=num_test_poses,
             successive_time_series_error_sigma=sigma,
+            model_class=model_class
         )
-        results['model_name'] = model_name
+        results['model_class'] = model_class
         results_list.append(results)
     
     return results_list
@@ -247,21 +248,17 @@ def compare_models(model_paths, model_names, num_test_poses=10, sigma=1.0):
 
 if __name__ == "__main__":
     # Example usage: Evaluate a single model
-    model_path = FINAL_DIR / "part2_non_encoder_with_stop.pth"
+    model_path = FINAL_DIR / "part2_encoder_with_stop.pth"
     
     if model_path.exists():
         results = evaluate_model_in_simulation(
             model_path=str(model_path),
             num_test_poses=10,
-            model_class=P2_MLP_None_Encoder,  # Change to P2_MLP if using the newer model
-            successive_time_series_error_sigma=0.95,
-            seed=100
+            model_class=P2_MLP_Encoder,  # Change to P2_MLP if using the newer model
+            successive_time_series_error_sigma=1.0,
+            seed=78
         )
         
-        # Save results
-        # results_file = FINAL_DIR / 'simulation_evaluation_results.pt'
-        # torch.save(results, results_file)
-        # print(f"\nResults saved to {results_file}")
     else:
         print(f"Model file not found: {model_path}")
         print("Please update the model_path variable to point to your trained model.")
@@ -274,11 +271,11 @@ if __name__ == "__main__":
         FINAL_DIR / "part2_best_model_no_stop.pth",
     ]
     model_names = ["With Stop Data", "No Stop Data"]
-    
-    comparison_results = compare_models(
-        model_paths=model_paths,
-        model_names=model_names,
-        num_test_poses=10,
-        sigma=1.0
-    )
     """
+
+    # comparison_results = compare_models(
+    #     model_paths=model_paths,
+    #     model_names=model_names,
+    #     num_test_poses=10,
+    #     sigma=1.0
+    # )

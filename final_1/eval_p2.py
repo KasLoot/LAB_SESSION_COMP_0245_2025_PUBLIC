@@ -23,7 +23,7 @@ from pathlib import Path
 from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl
 
 # Import the trained model
-from part_2 import P2_MLP, P2_MLP_None_Encoder
+from part_2 import P2_MLP_Encoder, P2_MLP_None_Encoder
 
 
 # ============================================================================
@@ -31,12 +31,13 @@ from part_2 import P2_MLP, P2_MLP_None_Encoder
 # ============================================================================
 
 # Set random seed for reproducibility
-np.random.seed(100)  # Using test seed for evaluation
+np.random.seed(78)  # Using test seed for evaluation
 
 # Directories
 FINAL_DIR = Path(__file__).resolve().parent
-MODEL_PATH = FINAL_DIR / "part2_non_encoder_with_stop.pth"
-RESULTS_DIR = FINAL_DIR / "P2_MLP_None_Encoder_Evaluation_Results"
+MODEL_CLASS = "none_encoder"  # encoder or none_encoder
+MODEL_PATH = FINAL_DIR / "part2_none_encoder_with_stop.pth"
+RESULTS_DIR = FINAL_DIR / "part2_none_encoder_with_stop_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Simulation parameters
@@ -44,7 +45,7 @@ NUM_TEST_POSES = 10  # Number of different target positions to test
 DURATION_PER_POSE = 5.0  # Duration in seconds for each pose
 
 # Visualization parameters
-SHOW_INTERACTIVE_3D = True  # Set to True to show interactive 3D plots (closes window to continue)
+SHOW_INTERACTIVE_3D = False  # Set to True to show interactive 3D plots (closes window to continue)
 
 
 # ============================================================================
@@ -90,9 +91,14 @@ def load_trained_model(model_path, device):
         device (torch.device): Device to load the model on
         
     Returns:
-        P2_MLP: Loaded model in evaluation mode
+        Loaded model in evaluation mode
     """
-    model = P2_MLP_None_Encoder(input_size=10, output_size=14)
+    if MODEL_CLASS == "encoder":
+        model = P2_MLP_Encoder(input_size=10, output_size=14)
+    elif MODEL_CLASS == "none_encoder":
+        model = P2_MLP_None_Encoder(input_size=10, output_size=14)
+    else:
+        raise ValueError(f"Unknown MODEL_CLASS: {MODEL_CLASS}")
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(torch.float64).to(device)
     model.eval()
@@ -162,18 +168,6 @@ def simulate_single_trajectory(sim: pb.SimInterface, dyn_model, model, device,
     time.sleep(0.1)
     
     
-    # Storage for trajectory data
-    # trajectory_data = {
-    #     'time': [],
-    #     'q_mes': [],           # Measured joint positions
-    #     'qd_mes': [],          # Measured joint velocities
-    #     'q_des_model': [],     # Model-predicted desired joint positions
-    #     'qd_des_model': [],    # Model-predicted desired joint velocities
-    #     'cart_pos': [],        # Actual Cartesian positions
-    #     'cart_ori': [],        # Actual Cartesian orientations
-    #     'tau_cmd': [],         # Commanded torques
-    #     'desired_cart_pos': desired_cartesian_pos
-    # }
     
     # Simulation parameters
     time_step = sim.GetTimeStep()
@@ -182,19 +176,6 @@ def simulate_single_trajectory(sim: pb.SimInterface, dyn_model, model, device,
     
     current_time = 0.0
     
-    # # Record initial state (at t=0, before any control is applied)
-    # q_mes_init = sim.GetMotorAngles(0)
-    # qd_mes_init = sim.GetMotorVelocities(0)
-    # cart_pos_init, cart_ori_init = dyn_model.ComputeFK(q_mes_init, controlled_frame_name)
-    
-    # trajectory_data['time'].append(0.0)
-    # trajectory_data['q_mes'].append(q_mes_init.copy())
-    # trajectory_data['qd_mes'].append(qd_mes_init.copy())
-    # trajectory_data['q_des_model'].append(q_mes_init.copy())  # No control yet
-    # trajectory_data['qd_des_model'].append(qd_mes_init.copy())  # No control yet
-    # trajectory_data['cart_pos'].append(cart_pos_init.copy())
-    # trajectory_data['cart_ori'].append(cart_ori_init.copy())
-    # trajectory_data['tau_cmd'].append(np.zeros(7))  # No torque at start
     
     # Simulation loop
     for t in range(steps):
@@ -587,7 +568,7 @@ def main():
         # trajectory_data['cart_ori'].append(cart_ori_init.copy())
         trajectory_data['tau_cmd'].append(np.zeros(7))  # No torque at start
 
-        print(trajectory_data)
+        # print(trajectory_data)
         
         # Run simulation
         trajectory_data = simulate_single_trajectory(

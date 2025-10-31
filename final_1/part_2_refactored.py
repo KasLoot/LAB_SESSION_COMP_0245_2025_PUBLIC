@@ -27,14 +27,14 @@ class Config:
     
     # Model Selection
     # Choose: 'encoder' or 'none_encoder'
-    MODEL_TYPE = 'encoder'
+    MODEL_TYPE = 'none_encoder'
     
     # Torch Random Seed
     RANDOM_SEED = 10
     
     # Data Paths
-    TRAIN_DATA_DIR = './data/train_with_stop_data/'
-    TEST_DATA_DIR = './data/test_with_stop_data/'
+    TRAIN_DATA_DIR = './data/train/'
+    TEST_DATA_DIR = './data/test/'
     
     # Model Architecture
     INPUT_SIZE = 10   # q_mes (7) + desired_cartesian_pos (3)
@@ -51,8 +51,8 @@ class Config:
     
     # Saving Options
     SAVE_MODEL = True
-    MODEL_SAVE_PATH = 'part2_encoder_with_stop.pth'
-    LOSS_PLOT_PATH = 'part2_encoder_with_stop_loss_curves.png'
+    MODEL_SAVE_PATH = f'part2_{MODEL_TYPE}_no_stop.pth'
+    LOSS_PLOT_PATH = f'part2_{MODEL_TYPE}_no_stop_loss_curves.png'
 
     @classmethod
     def get_model_class(cls):
@@ -541,7 +541,7 @@ if __name__ == "__main__":
     # evaluate_best_model()
     
     # Evaluate with custom parameters
-    # evaluate_best_model(
-    #     model_path='part2_non_encoder_with_stop.pth',
-    #     data_dir='./data/test_with_stop_data/'
-    # )
+    evaluate_best_model(
+        model_path=Config.MODEL_SAVE_PATH,
+        data_dir='./data/test_with_stop_data/'
+    )

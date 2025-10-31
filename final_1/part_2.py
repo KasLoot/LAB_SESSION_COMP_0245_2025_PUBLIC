@@ -122,7 +122,7 @@ def train():
 
     batch_size = 128
     learning_rate = 0.0001
-    num_epochs = 100
+    num_epochs = 200
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
@@ -235,11 +235,14 @@ def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     # 构建模型并加载权重
-    model = P2_MLP(input_size=10, output_size=14)
+    model = P2_MLP_Previous(input_size=10, output_size=14)
     state = torch.load(model_path, map_location=device)
     model.load_state_dict(state)
     model.to(torch.float64).to(device)
     model.eval()
+    print(f"Loaded model from '{model_path}' for evaluation.")
+    model_param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model initialized with {model_param_count} trainable parameters.")
 
     preds_list = []
     targets_list = []
@@ -283,6 +286,9 @@ def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
     print(f"Overall MSE: {mse_overall:.6e}")
     print(f"Overall R^2: {overall_r2:.6f}")
 
+    
+
+
     metrics = {
         "mse_per_dim": mse_per_dim,
         "mse_overall": mse_overall,
@@ -294,5 +300,5 @@ def evaluate_best_model(model_path, data_dir, batch_size=64, device=None):
     return metrics
 
 if __name__ == "__main__":
-    train()
-    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_encoder_design_best_model_with_stop.pth')
+    # train()
+    evaluate_best_model(data_dir='./data/test_with_stop_data/', model_path='part2_best_model_no_stop.pth')

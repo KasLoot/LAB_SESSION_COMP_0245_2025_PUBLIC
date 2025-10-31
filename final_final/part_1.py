@@ -28,12 +28,12 @@ CONFIG = {
     "model": {
         "input_size": 7,
         "output_size": 7,
-        "hidden": [128, 256, 128],
+        "hidden": [256, 128, 64],
         "activation": "leaky_relu",
     },
     "train": {
         "lr": 1e-3,
-        "num_epochs": 500,
+        "num_epochs": 1000,
         "best_model_path": "part1_best_model.pth",
     },
     "plot": {
